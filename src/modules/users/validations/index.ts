@@ -1,0 +1,10 @@
+import { z } from "zod";
+
+export const userFormValidationSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Please enter a valid email address"),
+  phone: z.string().optional(),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  role: z.enum(["USER", "SECRETARY", "ACCOUNTANT", "SECURITY"]),
+  status: z.enum(["ACTIVE", "INACTIVE", "PENDING"]).default("ACTIVE"),
+});
