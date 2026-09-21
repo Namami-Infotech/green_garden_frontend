@@ -199,7 +199,7 @@ export function UserFormModal({
           />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+        <div className="form-grid-2">
           <div className="form-group">
             <label className="form-label" htmlFor="new-user-role">Role (RBAC)</label>
             <select
@@ -257,7 +257,7 @@ export function UserFormModal({
               Assign Flat & Tower (Optional)
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: selectedFlatId ? "1fr 1fr" : "1fr", gap: "16px" }}>
+            <div className={selectedFlatId ? "form-grid-2" : ""}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" htmlFor="user-assign-flat">
                   Select Tower & Flat

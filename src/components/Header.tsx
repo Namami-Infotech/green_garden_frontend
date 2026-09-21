@@ -1,11 +1,16 @@
 "use client";
 
 import React from "react";
-import { Shield } from "lucide-react";
+import { Shield, Menu } from "lucide-react";
 import { useAuth } from "../hooks/use-auth";
 import { UserRole } from "../modules/auth/types/index";
 
-export function Header({ title }: { title: string }) {
+interface HeaderProps {
+  title: string;
+  onToggleSidebar?: () => void;
+}
+
+export function Header({ title, onToggleSidebar }: HeaderProps) {
   const { user, login, token } = useAuth();
 
   const handleRoleSwitch = async (newRole: UserRole) => {
@@ -20,11 +25,15 @@ export function Header({ title }: { title: string }) {
 
     try {
       const email = roleEmails[newRole];
-      const res = await fetch("http://localhost:5007/api/auth/login", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password: "123456" }),
-      });
+      }).catch(() => fetch("http://localhost:5007/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: "123456" }),
+      }));
       const data = await res.json();
       if (data?.data?.token && data?.data?.user) {
         login(data.data.token, data.data.user);
@@ -41,57 +50,30 @@ export function Header({ title }: { title: string }) {
   };
 
   return (
-    <header
-      style={{
-        position: "fixed",
-        top: 0,
-        left: "var(--sidebar-width)",
-        right: 0,
-        height: "var(--header-height)",
-        backgroundColor: "rgba(255, 255, 255, 0.96)",
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
-        borderBottom: "1px solid var(--border-color)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 32px",
-        zIndex: 40,
-        boxShadow: "0 1px 4px rgba(0, 0, 0, 0.04)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <h1 style={{ fontSize: "1.35rem", fontWeight: 700, color: "#0f172a" }}>
+    <header className="app-header">
+      <div className="header-title-wrapper">
+        {onToggleSidebar && (
+          <button
+            type="button"
+            className="sidebar-toggle-btn"
+            onClick={onToggleSidebar}
+            aria-label="Toggle navigation menu"
+            id="mobile-sidebar-toggle"
+          >
+            <Menu size={20} />
+          </button>
+        )}
+        <h1 className="header-title-text">
           {title}
         </h1>
-        <span
-          style={{
-            fontSize: "0.75rem",
-            color: "#059669",
-            backgroundColor: "#ecfdf5",
-            padding: "3px 10px",
-            borderRadius: "9999px",
-            fontWeight: 600,
-            border: "1px solid #a7f3d0",
-          }}
-        >
+        <span className="header-badge">
           Green Place
         </span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-        {/* Role Switcher Pill */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            background: "#f8fafc",
-            padding: "4px 6px",
-            borderRadius: "10px",
-            border: "1px solid var(--border-color)",
-          }}
-        >
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        {/* Desktop Role Switcher: Full Button Group */}
+        <div className="desktop-role-switcher">
           <Shield size={14} color="#64748b" style={{ marginLeft: "4px" }} />
           <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginRight: "4px" }}>Role:</span>
           {(["SECRETARY", "ACCOUNTANT", "SECURITY", "USER"] as UserRole[]).map((r) => (
@@ -114,6 +96,22 @@ export function Header({ title }: { title: string }) {
               {r}
             </button>
           ))}
+        </div>
+
+        {/* Mobile Role Switcher: Compact Clean Selector */}
+        <div className="mobile-role-switcher">
+          <Shield size={16} color="#10b981" />
+          <select
+            className="mobile-role-select"
+            value={user?.role || "USER"}
+            onChange={(e) => handleRoleSwitch(e.target.value as UserRole)}
+            aria-label="Switch Role"
+          >
+            <option value="SECRETARY">Secretary</option>
+            <option value="ACCOUNTANT">Accountant</option>
+            <option value="SECURITY">Security</option>
+            <option value="USER">Resident</option>
+          </select>
         </div>
       </div>
     </header>

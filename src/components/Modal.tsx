@@ -30,44 +30,19 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = "540px" }: 
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.75)",
-        backdropFilter: "blur(8px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 100,
-        padding: "20px",
-      }}
+      className="modal-overlay"
       onClick={onClose}
     >
       <div
-        className="glass-panel animate-fade-in"
-        style={{
-          width: "100%",
-          maxWidth,
-          backgroundColor: "#ffffff",
-          border: "1px solid var(--border-color)",
-          borderRadius: "var(--radius-lg)",
-          boxShadow: "var(--shadow-lg)",
-          overflow: "hidden",
-        }}
+        className="modal-panel glass-panel animate-fade-in"
+        style={{ maxWidth }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          style={{
-            padding: "18px 24px",
-            borderBottom: "1px solid var(--border-color)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
+        <div className="modal-header">
           <h3 style={{ fontSize: "1.15rem", color: "#0f172a" }}>{title}</h3>
           <button
             onClick={onClose}
+            aria-label="Close dialog"
             style={{
               background: "transparent",
               border: "none",
@@ -83,7 +58,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = "540px" }: 
             <X size={20} />
           </button>
         </div>
-        <div style={{ padding: "24px", maxHeight: "80vh", overflowY: "auto" }}>
+        <div className="modal-body">
           {children}
         </div>
       </div>

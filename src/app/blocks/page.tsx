@@ -75,7 +75,7 @@ export default function BlocksPage() {
   return (
     <DashboardShell title="Towers & Blocks Management">
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div className="page-header-row">
           <div>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
               Configure and manage society wings, high-rise towers, and floor layouts.

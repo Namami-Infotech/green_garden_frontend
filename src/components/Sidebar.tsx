@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -13,6 +13,7 @@ import {
   Trees,
   LogOut,
   ReceiptText,
+  X,
 } from "lucide-react";
 import { useAuth } from "../hooks/use-auth";
 
@@ -25,40 +26,47 @@ const navItems = [
   { label: "Society Settings", href: "/settings", icon: Settings, roles: ["SECRETARY", "ACCOUNTANT"] },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen && onClose) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   return (
-    <aside
-      style={{
-        width: "var(--sidebar-width)",
-        height: "100vh",
-        maxHeight: "100vh",
-        backgroundColor: "#0f172a",
-        borderRight: "1px solid #1e293b",
-        display: "flex",
-        flexDirection: "column",
-        position: "fixed",
-        top: 0,
-        left: 0,
-        bottom: 0,
-        zIndex: 50,
-        overflow: "hidden",
-      }}
-    >
-      {/* Brand Logo */}
+    <>
+      {/* Mobile Drawer Backdrop */}
       <div
-        style={{
-          height: "var(--header-height)",
-          display: "flex",
-          alignItems: "center",
-          gap: "12px",
-          padding: "0 22px",
-          borderBottom: "1px solid #1e293b",
-          flexShrink: 0,
-        }}
-      >
+        className={`sidebar-backdrop ${isOpen ? "active" : ""}`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      <aside className={`app-sidebar ${isOpen ? "open" : ""}`}>
+        {/* Brand Logo */}
+        <div
+          style={{
+            height: "var(--header-height)",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            padding: "0 18px",
+            borderBottom: "1px solid #1e293b",
+            flexShrink: 0,
+          }}
+        >
         <div
           style={{
             width: "42px",
@@ -73,59 +81,69 @@ export function Sidebar() {
         >
           <Trees size={24} color="#ffffff" />
         </div>
-        <div>
-          <h2 style={{ fontSize: "1.15rem", fontWeight: "800", color: "#ffffff", lineHeight: 1.1, letterSpacing: "-0.01em" }}>
-            GREEN PLACE
-          </h2>
-          <span style={{ fontSize: "0.7rem", color: "#34d399", fontWeight: 700, letterSpacing: "0.08em" }}>
-            RESIDENTIAL ECO-LIVING
-          </span>
-        </div>
-      </div>
+          <div>
+            <h2 style={{ fontSize: "1.15rem", fontWeight: "800", color: "#ffffff", lineHeight: 1.1, letterSpacing: "-0.01em" }}>
+              GREEN PLACE
+            </h2>
+            <span style={{ fontSize: "0.7rem", color: "#34d399", fontWeight: 700, letterSpacing: "0.08em" }}>
+              RESIDENTIAL ECO-LIVING
+            </span>
+          </div>
 
-      {/* Navigation Links */}
-      <nav
-        style={{
-          padding: "16px 14px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "6px",
-          flex: 1,
-          overflowY: "auto",
-        }}
-      >
-        <div
+          {/* Close button for mobile / tablet */}
+          <button
+            onClick={onClose}
+            className="sidebar-close-btn"
+            aria-label="Close navigation sidebar"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Navigation Links */}
+        <nav
           style={{
-            fontSize: "0.725rem",
-            fontWeight: "700",
-            textTransform: "uppercase",
-            color: "#94a3b8",
-            padding: "0 12px 4px 12px",
-            letterSpacing: "0.08em",
+            padding: "16px 14px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "6px",
+            flex: 1,
+            overflowY: "auto",
           }}
         >
-          Modules
-        </div>
+          <div
+            style={{
+              fontSize: "0.725rem",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              color: "#94a3b8",
+              padding: "0 12px 4px 12px",
+              letterSpacing: "0.08em",
+            }}
+          >
+            Modules
+          </div>
 
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href;
-          const canAccess = !user || item.roles.includes(user.role);
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+            const canAccess = !user || item.roles.includes(user.role);
 
-          if (!canAccess) return null;
+            if (!canAccess) return null;
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`sidebar-link ${isActive ? "active" : ""}`}
-            >
-              <Icon size={19} className="nav-icon" />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`sidebar-link ${isActive ? "active" : ""}`}
+                onClick={onClose}
+              >
+                <Icon size={19} className="nav-icon" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
 
       {/* Bottom Footer Section: User Profile & Logout */}
       <div
@@ -204,6 +222,7 @@ export function Sidebar() {
           <span style={{ fontWeight: 500 }}>RBAC Protected System</span>
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

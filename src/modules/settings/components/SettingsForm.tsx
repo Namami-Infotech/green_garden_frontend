@@ -181,7 +181,7 @@ export function SettingsForm() {
           <h3 style={{ fontSize: "1.1rem", color: "#0f172a" }}>Maintenance & Financial Policies</h3>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+        <div className="form-grid-2">
           <div className="form-group">
             <label className="form-label" htmlFor="setting-maint-rate">Base Monthly Maintenance (INR)</label>
             <input
@@ -295,7 +295,7 @@ export function SettingsForm() {
           </select>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+        <div className="form-grid-2">
           <div className="form-group">
             <label className="form-label" htmlFor="setting-quiet-start">Quiet Hours Start</label>
             <input

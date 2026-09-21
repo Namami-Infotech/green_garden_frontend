@@ -146,7 +146,7 @@ export function FlatFormModal({
 
       <form onSubmit={handleSubmit}>
         {/* Basic Flat Info */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+        <div className="form-grid-2">
           <div className="form-group">
             <label className="form-label" htmlFor="new-flat-number">Flat / Unit Number</label>
             <input
@@ -176,7 +176,7 @@ export function FlatFormModal({
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+        <div className="form-grid-2">
           <div className="form-group">
             <label className="form-label" htmlFor="new-flat-floor">Floor Number</label>
             <input
@@ -235,7 +235,7 @@ export function FlatFormModal({
               User Assignment (Owner & Resident)
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <div className="form-grid-2">
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" htmlFor="flat-owner">
                   Select Owner (User)

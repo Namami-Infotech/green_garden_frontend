@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { useAuth } from "../hooks/use-auth";
@@ -14,6 +14,13 @@ interface DashboardShellProps {
 export function DashboardShell({ title, children }: DashboardShellProps) {
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Close sidebar drawer automatically when navigating to a new route
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [pathname]);
 
   // isLoading is always false now — redirect instantly if not authenticated
   useEffect(() => {
@@ -27,19 +34,13 @@ export function DashboardShell({ title, children }: DashboardShellProps) {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "var(--bg-primary)" }}>
-      <Sidebar />
-      <div
-        style={{
-          marginLeft: "var(--sidebar-width)",
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          minWidth: 0,
-          paddingTop: "var(--header-height)",
-        }}
-      >
-        <Header title={title} />
-        <main style={{ padding: "32px", flex: 1, maxWidth: "1600px", width: "100%", margin: "0 auto" }}>
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <div className="app-main-wrapper">
+        <Header
+          title={title}
+          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+        />
+        <main className="app-content-body">
           {children}
         </main>
       </div>

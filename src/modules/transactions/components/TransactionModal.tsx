@@ -384,7 +384,7 @@ export function TransactionModal({
           </div>
 
           {/* Month Selector ("Har Month Pay Krne Ka Option") */}
-          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "12px" }}>
+          <div className="form-grid-2">
             <div className="form-group">
               <label className="form-label" htmlFor="txn-month">
                 <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
@@ -430,7 +430,7 @@ export function TransactionModal({
             <label className="form-label" style={{ fontWeight: 700 }}>
               Payment Option (Fully Pay ya Partial Pay) *
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <div className="form-grid-2">
               {/* Option 1: Fully Pay */}
               <button
                 type="button"
@@ -508,7 +508,7 @@ export function TransactionModal({
               border: "1px solid var(--border-color)",
             }}
           >
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", alignItems: "center" }}>
+            <div className="form-grid-2" style={{ alignItems: "center" }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label" htmlFor="txn-amount" style={{ fontWeight: 600 }}>
                   Amount to Pay Now (INR) *
@@ -575,7 +575,7 @@ export function TransactionModal({
           {/* Payment Method Selector (CASH vs UPI) */}
           <div className="form-group">
             <label className="form-label">Payment Mode (Cash ya UPI) *</label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <div className="form-grid-2">
               <button
                 type="button"
                 onClick={() => setPaymentMethod("UPI")}
@@ -623,7 +623,7 @@ export function TransactionModal({
           </div>
 
           {/* Associated Flat & Payer Name */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div className="form-grid-2">
             <div className="form-group">
               <label className="form-label" htmlFor="txn-flat">
                 {isResident ? "Your Flat / Unit *" : "Select Flat / Unit"}
@@ -665,7 +665,7 @@ export function TransactionModal({
           </div>
 
           {/* Payment Date & Reference */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div className="form-grid-2">
             <div className="form-group">
               <label className="form-label" htmlFor="txn-date">Payment Date & Time *</label>
               <input
