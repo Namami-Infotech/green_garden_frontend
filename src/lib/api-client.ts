@@ -1,6 +1,6 @@
 const getBaseUrl = (): string => {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+  if (process.env.BACKENDURL) {
+    return process.env.BACKENDURL;
   }
   if (typeof window !== "undefined") {
     // Relative URL uses Next.js proxy rewrite, avoiding CORS and host issues
