@@ -14,6 +14,10 @@ export class AuthService {
     return response.data;
   }
 
+  async logout(): Promise<void> {
+    await apiClient.post("/auth/logout");
+  }
+
   async getProfile(): Promise<UserDTO> {
     const response = await apiClient.get<UserDTO>("/auth/me");
     if (!response.data) throw new Error("Failed to fetch profile");

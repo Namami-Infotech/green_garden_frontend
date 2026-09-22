@@ -1,13 +1,15 @@
 const getBaseUrl = (): string => {
-  if (process.env.BACKENDURL) {
-    return process.env.BACKENDURL;
-  }
-  if (typeof window !== "undefined") {
-    // Relative URL uses Next.js proxy rewrite, avoiding CORS and host issues
-    return "/api";
-  }
-  return "http://localhost:5007/api";
+  return (
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_BACKENDURL ||
+    process.env.BACKENDURL ||
+    "http://localhost:5007/api"
+  );
 };
+
+
+
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -39,18 +41,14 @@ class ApiClient {
   private async autoRefreshToken(): Promise<string | null> {
     try {
       const baseUrl = getBaseUrl();
-      const res = await fetch(`${baseUrl}/auth/login`, {
+      const res = await fetch(`${baseUrl}/auth/refresh`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "secretary@society.com", password: "123456" }),
       });
       const data = await res.json();
       if (data?.data?.token) {
         setCookieValue("socity_auth_token", data.data.token, 1);
-        if (data.data.user) {
-          setCookieValue("socity_auth_user", JSON.stringify(data.data.user), 7);
-        }
         return data.data.token;
       }
     } catch {

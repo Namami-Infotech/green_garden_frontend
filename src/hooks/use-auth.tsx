@@ -39,7 +39,22 @@ function setCookie(name: string, value: string, days = 7) {
 
 function deleteCookie(name: string) {
   if (typeof document === "undefined") return;
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+  const expired = "expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0";
+  document.cookie = `${name}=; ${expired}; path=/; SameSite=Lax`;
+  document.cookie = `${name}=; ${expired}; path=/`;
+  document.cookie = `${name}=; ${expired}`;
+
+  try {
+    const hostname = window.location.hostname;
+    document.cookie = `${name}=; ${expired}; path=/; domain=${hostname}`;
+    if (hostname.includes(".")) {
+      const domainParts = hostname.split(".");
+      const rootDomain = domainParts.slice(-2).join(".");
+      document.cookie = `${name}=; ${expired}; path=/; domain=.${rootDomain}`;
+    }
+  } catch {
+    // ignore
+  }
 }
 
 function readAuthFromStorage(): { token: string | null; user: CurrentUser | null } {
@@ -85,26 +100,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // 1. Call backend logout API to clear HttpOnly cookies from server
+    try {
+      const { apiClient } = await import("../lib/api-client");
+      await apiClient.post("/auth/logout");
+    } catch {
+      // ignore network errors
+    }
+
+    // 2. Clear state
     setToken(null);
     setUser(null);
-    // Clear cookies
+
+    // 3. Clear frontend cookies
     deleteCookie("socity_auth_token");
     deleteCookie("socity_auth_user");
     deleteCookie("accessToken");
     deleteCookie("access_token");
     deleteCookie("refreshToken");
     deleteCookie("refresh_token");
+
+    // 4. Clear storage
     if (typeof localStorage !== "undefined") {
       localStorage.removeItem("socity_auth_token");
       localStorage.removeItem("socity_auth_user");
+      localStorage.clear();
     }
-    // Call backend logout API to clear HttpOnly cookies
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    } catch {
-      // ignore
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.clear();
     }
-    router.push("/login");
+
+    // 5. Navigate to login
+    router.replace("/login");
   }, [router]);
 
   const hasRole = useCallback(
