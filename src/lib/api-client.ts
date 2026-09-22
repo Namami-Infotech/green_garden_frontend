@@ -16,10 +16,22 @@ export interface ApiResponse<T = unknown> {
   errors?: unknown;
 }
 
+function getCookieValue(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^|;\\s*)(" + name + ")=([^;]*)"));
+  return match ? decodeURIComponent(match[3]) : null;
+}
+
+function setCookieValue(name: string, value: string, days = 7) {
+  if (typeof document === "undefined") return;
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
 class ApiClient {
   private getToken(): string | null {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("socity_auth_token");
+      return getCookieValue("socity_auth_token") || getCookieValue("accessToken") || getCookieValue("access_token");
     }
     return null;
   }
@@ -29,14 +41,15 @@ class ApiClient {
       const baseUrl = getBaseUrl();
       const res = await fetch(`${baseUrl}/auth/login`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: "secretary@society.com", password: "123456" }),
       });
       const data = await res.json();
       if (data?.data?.token) {
-        localStorage.setItem("socity_auth_token", data.data.token);
+        setCookieValue("socity_auth_token", data.data.token, 1);
         if (data.data.user) {
-          localStorage.setItem("socity_auth_user", JSON.stringify(data.data.user));
+          setCookieValue("socity_auth_user", JSON.stringify(data.data.user), 7);
         }
         return data.data.token;
       }
@@ -67,6 +80,7 @@ class ApiClient {
       : `${baseUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
 
     const response = await fetch(url, {
+      credentials: "include",
       ...options,
       headers,
     });

@@ -16,21 +16,28 @@ export function DashboardShell({ title, children }: DashboardShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close sidebar drawer automatically when navigating to a new route
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [pathname]);
 
-  // isLoading is always false now — redirect instantly if not authenticated
+  // Redirect if not authenticated once mounted
   useEffect(() => {
-    if (!user) {
+    if (mounted && !user) {
       router.replace("/login");
     }
-  }, [user, router]);
+  }, [mounted, user, router]);
 
-  // Not authenticated — show nothing while redirect happens
-  if (!user) return null;
+  // Initial SSR render and before client mounts matches, or while redirecting if unauthenticated
+  if (!mounted || !user) {
+    return null;
+  }
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "var(--bg-primary)" }}>

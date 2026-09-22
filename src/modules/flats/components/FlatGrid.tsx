@@ -46,7 +46,7 @@ export function FlatGrid({
           <tr>
             <th style={{ whiteSpace: "nowrap" }}>Flat Unit</th>
             <th style={{ whiteSpace: "nowrap" }}>Tower & Floor</th>
-            <th style={{ whiteSpace: "nowrap" }}>Flat Type</th>
+          
             <th style={{ whiteSpace: "nowrap" }}>Occupancy Status</th>
             <th style={{ whiteSpace: "nowrap" }}>Owner</th>
             <th style={{ whiteSpace: "nowrap" }}>Resident</th>
@@ -102,11 +102,11 @@ export function FlatGrid({
                   </td>
 
                   {/* Flat Type */}
-                  <td style={{ whiteSpace: "nowrap" }}>
+                  {/* <td style={{ whiteSpace: "nowrap" }}>
                     <span className="badge badge-user" style={{ fontSize: "0.72rem" }}>
                       {flat.flatType}
                     </span>
-                  </td>
+                  </td> */}
 
                   {/* Occupancy Status */}
                   <td style={{ whiteSpace: "nowrap" }}>

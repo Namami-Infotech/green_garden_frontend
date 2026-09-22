@@ -24,23 +24,40 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Synchronously reads auth from localStorage — called once on first render via lazy useState
+// Helper functions to read and write cookies in browser
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^|;\\s*)(" + name + ")=([^;]*)"));
+  return match ? decodeURIComponent(match[3]) : null;
+}
+
+function setCookie(name: string, value: string, days = 7) {
+  if (typeof document === "undefined") return;
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
+function deleteCookie(name: string) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+}
+
 function readAuthFromStorage(): { token: string | null; user: CurrentUser | null } {
   if (typeof window === "undefined") return { token: null, user: null };
   try {
-    const savedToken = localStorage.getItem("socity_auth_token");
-    const savedUser = localStorage.getItem("socity_auth_user");
+    const savedToken = getCookie("socity_auth_token") || getCookie("accessToken") || getCookie("access_token");
+    const savedUserStr = getCookie("socity_auth_user");
     const isMockToken =
       !savedToken ||
       savedToken === "mock_token" ||
       savedToken === "mock-jwt-token";
 
-    if (!isMockToken && savedUser) {
-      return { token: savedToken, user: JSON.parse(savedUser) };
+    if (!isMockToken && savedUserStr) {
+      return { token: savedToken, user: JSON.parse(savedUserStr) };
     }
   } catch {
-    localStorage.removeItem("socity_auth_token");
-    localStorage.removeItem("socity_auth_user");
+    deleteCookie("socity_auth_token");
+    deleteCookie("socity_auth_user");
   }
   return { token: null, user: null };
 }
@@ -58,15 +75,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback((newToken: string, newUser: CurrentUser) => {
     setToken(newToken);
     setUser(newUser);
-    localStorage.setItem("socity_auth_token", newToken);
-    localStorage.setItem("socity_auth_user", JSON.stringify(newUser));
+    // Save to cookies instead of localStorage
+    setCookie("socity_auth_token", newToken, 1);
+    setCookie("socity_auth_user", JSON.stringify(newUser), 7);
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem("socity_auth_token");
+      localStorage.removeItem("socity_auth_user");
+    }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem("socity_auth_token");
-    localStorage.removeItem("socity_auth_user");
+    // Clear cookies
+    deleteCookie("socity_auth_token");
+    deleteCookie("socity_auth_user");
+    deleteCookie("accessToken");
+    deleteCookie("access_token");
+    deleteCookie("refreshToken");
+    deleteCookie("refresh_token");
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem("socity_auth_token");
+      localStorage.removeItem("socity_auth_user");
+    }
+    // Call backend logout API to clear HttpOnly cookies
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {
+      // ignore
+    }
     router.push("/login");
   }, [router]);
 
