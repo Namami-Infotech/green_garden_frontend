@@ -31,6 +31,20 @@ interface TransactionModalProps {
   initialPayerId?: number;
 }
 
+// Parse month string like "September 2026" into a comparable integer (year * 12 + monthIndex)
+export const parseMonthYear = (str: string): number => {
+  if (!str) return 0;
+  const parts = str.trim().split(" ");
+  if (parts.length < 2) return 0;
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const mIndex = monthNames.indexOf(parts[0]);
+  const year = parseInt(parts[1], 10) || 0;
+  return year * 12 + (mIndex >= 0 ? mIndex : 0);
+};
+
 // Generate months list for current year
 const generateMonthsList = () => {
   const currentYear = new Date().getFullYear();
@@ -71,8 +85,23 @@ export function TransactionModal({
   const [fromMonth, setFromMonth] = useState<string>(defaultCurrentMonth());
   const [toMonth, setToMonth] = useState<string>(defaultCurrentMonth());
 
-  const monthIndex = (m: string) => availableMonths.indexOf(m);
-  const numMonths = Math.max(1, monthIndex(toMonth) - monthIndex(fromMonth) + 1);
+  // Enforce From Month <= To Month (To Month can never be less than From Month)
+  const handleFromMonthChange = (val: string) => {
+    setFromMonth(val);
+    if (parseMonthYear(toMonth) < parseMonthYear(val)) {
+      setToMonth(val);
+    }
+  };
+
+  const handleToMonthChange = (val: string) => {
+    if (parseMonthYear(val) >= parseMonthYear(fromMonth)) {
+      setToMonth(val);
+    } else {
+      setToMonth(fromMonth);
+    }
+  };
+
+  const numMonths = Math.max(1, parseMonthYear(toMonth) - parseMonthYear(fromMonth) + 1);
 
   // Payment Plan: FULL vs PARTIAL
   const [paymentPlan, setPaymentPlan] = useState<"FULL" | "PARTIAL">("FULL");
@@ -127,6 +156,13 @@ export function TransactionModal({
     }
     loadConfig();
   }, [isOpen]);
+
+  // Keep amount synchronized when months change and payment plan is FULL
+  useEffect(() => {
+    if (paymentPlan === "FULL") {
+      setAmount(String(totalMonthlyDue));
+    }
+  }, [totalMonthlyDue, paymentPlan]);
 
   // Handle initialization of flat & payer when modal opens
   useEffect(() => {
@@ -190,6 +226,11 @@ export function TransactionModal({
     const formattedAmount = parsedAmount.toFixed(2);
     if (parsedAmount <= 0) {
       setError("Please enter a valid payment amount greater than ₹0.");
+      return;
+    }
+
+    if (parseMonthYear(fromMonth) > parseMonthYear(toMonth)) {
+      setError("From Month must be less than or equal to To Month.");
       return;
     }
 
@@ -403,7 +444,7 @@ export function TransactionModal({
                 id="txn-from-month"
                 className="form-select"
                 value={fromMonth}
-                onChange={(e) => setFromMonth(e.target.value)}
+                onChange={(e) => handleFromMonthChange(e.target.value)}
                 required
               >
                 {availableMonths.map((m) => (
@@ -425,14 +466,17 @@ export function TransactionModal({
                 id="txn-to-month"
                 className="form-select"
                 value={toMonth}
-                onChange={(e) => setToMonth(e.target.value)}
+                onChange={(e) => handleToMonthChange(e.target.value)}
                 required
               >
-                {availableMonths.map((m) => (
-                  <option key={m} value={m}>
-                    {m} {m === defaultCurrentMonth() ? "(Current Month)" : ""}
-                  </option>
-                ))}
+                {availableMonths.map((m) => {
+                  const isPrior = parseMonthYear(m) < parseMonthYear(fromMonth);
+                  return (
+                    <option key={m} value={m} disabled={isPrior}>
+                      {m} {m === defaultCurrentMonth() ? "(Current Month)" : ""} {isPrior ? "(Earlier than From Month)" : ""}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
