@@ -190,22 +190,6 @@ export function FlatFormModal({
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label" htmlFor="new-flat-type">Unit Layout</label>
-            <select
-              id="new-flat-type"
-              className="form-select"
-              value={flatType}
-              onChange={(e) => setFlatType(e.target.value as FlatType)}
-            >
-              <option value="1BHK">1 BHK</option>
-              <option value="2BHK">2 BHK</option>
-              <option value="3BHK">3 BHK</option>
-              <option value="4BHK">4 BHK</option>
-              <option value="PENTHOUSE">Penthouse</option>
-              <option value="STUDIO">Studio</option>
-            </select>
-          </div>
         </div>
 
         {/* Resident & Owner Assignment Section - Only available when editing an existing flat */}

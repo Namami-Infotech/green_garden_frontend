@@ -68,7 +68,11 @@ export function TransactionModal({
     const d = new Date();
     return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(d);
   };
-  const [billingMonth, setBillingMonth] = useState<string>(defaultCurrentMonth());
+  const [fromMonth, setFromMonth] = useState<string>(defaultCurrentMonth());
+  const [toMonth, setToMonth] = useState<string>(defaultCurrentMonth());
+
+  const monthIndex = (m: string) => availableMonths.indexOf(m);
+  const numMonths = Math.max(1, monthIndex(toMonth) - monthIndex(fromMonth) + 1);
 
   // Payment Plan: FULL vs PARTIAL
   const [paymentPlan, setPaymentPlan] = useState<"FULL" | "PARTIAL">("FULL");
@@ -83,7 +87,7 @@ export function TransactionModal({
   const [error, setError] = useState<string | null>(null);
 
   // Total monthly due from Settings
-  const totalMonthlyDue = baseMaintenanceRate + securityChargeRate;
+  const totalMonthlyDue = (baseMaintenanceRate + securityChargeRate) * numMonths;
 
   // Filter flats if resident
   const userFlats = isResident && user
@@ -111,7 +115,7 @@ export function TransactionModal({
         setSecurityChargeRate(sec);
 
         // If Full pay is selected, default amount to full total due
-        const total = base + sec;
+        const total = (base + sec) * numMonths;
         if (paymentPlan === "FULL") {
           setAmount(String(total));
         }
@@ -189,10 +193,11 @@ export function TransactionModal({
       return;
     }
 
+    const billingPeriodLabel = fromMonth === toMonth ? fromMonth : `${fromMonth} to ${toMonth}`;
     // Prepare note description
     const planLabel = paymentPlan === "FULL"
-      ? `Full Payment (100% Cleared for ${billingMonth})`
-      : `Partial Payment for ${billingMonth} (₹${remainingBalance.toLocaleString("en-IN")} pending)`;
+      ? `Full Payment (100% Cleared for ${billingPeriodLabel})`
+      : `Partial Payment for ${billingPeriodLabel} (₹${remainingBalance.toLocaleString("en-IN")} pending)`;
     
     const combinedNotes = notes.trim()
       ? `${notes.trim()} | ${planLabel}`
@@ -208,7 +213,9 @@ export function TransactionModal({
       referenceNumber: referenceNumber.trim() || undefined,
       paymentDate: new Date(paymentDate).toISOString(),
       notes: combinedNotes,
-      billingMonth,
+      billingMonth: fromMonth === toMonth ? fromMonth : `${fromMonth} - ${toMonth}`,
+      fromMonth,
+      toMonth,
       paymentPlan,
       balanceRemaining: remainingBalance.toFixed(2),
     };
@@ -386,17 +393,17 @@ export function TransactionModal({
           {/* Month Selector ("Har Month Pay Krne Ka Option") */}
           <div className="form-grid-2">
             <div className="form-group">
-              <label className="form-label" htmlFor="txn-month">
+              <label className="form-label" htmlFor="txn-from-month">
                 <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
                   <Calendar size={14} color="#059669" />
-                  Select Month to Pay (Har Month) *
+                  From Month *
                 </span>
               </label>
               <select
-                id="txn-month"
+                id="txn-from-month"
                 className="form-select"
-                value={billingMonth}
-                onChange={(e) => setBillingMonth(e.target.value)}
+                value={fromMonth}
+                onChange={(e) => setFromMonth(e.target.value)}
                 required
               >
                 {availableMonths.map((m) => (
@@ -407,6 +414,30 @@ export function TransactionModal({
               </select>
             </div>
 
+            <div className="form-group">
+              <label className="form-label" htmlFor="txn-to-month">
+                <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <Calendar size={14} color="#059669" />
+                  To Month *
+                </span>
+              </label>
+              <select
+                id="txn-to-month"
+                className="form-select"
+                value={toMonth}
+                onChange={(e) => setToMonth(e.target.value)}
+                required
+              >
+                {availableMonths.map((m) => (
+                  <option key={m} value={m}>
+                    {m} {m === defaultCurrentMonth() ? "(Current Month)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="form-grid-2">
             <div className="form-group">
               <label className="form-label" htmlFor="txn-cat">Payment Category</label>
               <select
@@ -428,7 +459,7 @@ export function TransactionModal({
           {/* Payment Plan: FULLY PAY vs PARTIAL PAY */}
           <div className="form-group">
             <label className="form-label" style={{ fontWeight: 700 }}>
-              Payment Option (Fully Pay ya Partial Pay) *
+              Payment Option *
             </label>
             <div className="form-grid-2">
               {/* Option 1: Fully Pay */}
@@ -529,7 +560,7 @@ export function TransactionModal({
               {/* Real-time Dues Status */}
               <div>
                 <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 600 }}>
-                  Monthly Status for {billingMonth}:
+                  Monthly Status for {fromMonth === toMonth ? fromMonth : `${fromMonth} to ${toMonth}`}:
                 </div>
                 {paymentPlan === "FULL" ? (
                   <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "6px", color: "#059669", fontWeight: 700, fontSize: "0.9rem" }}>
@@ -574,7 +605,7 @@ export function TransactionModal({
 
           {/* Payment Method Selector (CASH vs UPI) */}
           <div className="form-group">
-            <label className="form-label">Payment Mode (Cash ya UPI) *</label>
+            <label className="form-label">Payment Mode *</label>
             <div className="form-grid-2">
               <button
                 type="button"
@@ -646,7 +677,7 @@ export function TransactionModal({
 
             <div className="form-group">
               <label className="form-label" htmlFor="txn-payer">
-                {isResident ? "Resident Name (Self) *" : "Kiska Paisa Liya (Payer Name) *"}
+                {isResident ? "Resident Name (Self) *" : "Payer Name *"}
               </label>
               <input
                 id="txn-payer"
@@ -700,8 +731,8 @@ export function TransactionModal({
               className="form-input"
               placeholder={
                 isResident
-                  ? `Self payment for ${billingMonth}`
-                  : `e.g. Paid at society office for ${billingMonth}`
+                  ? `Self payment for ${fromMonth === toMonth ? fromMonth : `${fromMonth} to ${toMonth}`}`
+                  : `e.g. Paid at society office for ${fromMonth === toMonth ? fromMonth : `${fromMonth} to ${toMonth}`}`
               }
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

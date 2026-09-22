@@ -22,6 +22,8 @@ export interface TransactionItem {
   status: TransactionStatus;
   notes?: string | null;
   billingMonth?: string | null;
+  fromMonth?: string | null;
+  toMonth?: string | null;
   paymentPlan?: "FULL" | "PARTIAL" | null;
   balanceRemaining?: string | null;
   createdAt: string;
@@ -39,6 +41,8 @@ export interface CreateTransactionData {
   paymentDate: string;
   notes?: string;
   billingMonth?: string;
+  fromMonth?: string;
+  toMonth?: string;
   paymentPlan?: "FULL" | "PARTIAL";
   balanceRemaining?: string;
 }

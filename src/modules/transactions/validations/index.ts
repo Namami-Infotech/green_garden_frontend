@@ -9,4 +9,6 @@ export const transactionFormValidationSchema = z.object({
   referenceNumber: z.string().optional(),
   paymentDate: z.string().min(1, "Payment date is required"),
   notes: z.string().optional(),
+  fromMonth: z.string().optional(),
+  toMonth: z.string().optional(),
 });
