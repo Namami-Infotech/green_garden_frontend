@@ -189,10 +189,20 @@ export function TransactionList({ transactions, pageSize = 10 }: TransactionList
 
               {/* Month & Plan */}
               <td style={{ padding: "16px 18px", verticalAlign: "middle" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, color: "#0f172a", fontSize: "0.825rem" }}>
-                  <Calendar size={13} color="#059669" />
-                  <span>{t.billingMonth || "Monthly Dues"}</span>
-                </div>
+                {/* Billing period: fromMonth → toMonth or billingMonth */}
+                {t.fromMonth && t.toMonth && t.fromMonth !== t.toMonth ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "5px", fontWeight: 700, color: "#0f172a", fontSize: "0.8rem" }}>
+                    <Calendar size={13} color="#059669" />
+                    <span>{t.fromMonth}</span>
+                    <span style={{ color: "#6b7280", fontSize: "0.75rem" }}>→</span>
+                    <span>{t.toMonth}</span>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, color: "#0f172a", fontSize: "0.825rem" }}>
+                    <Calendar size={13} color="#059669" />
+                    <span>{t.fromMonth || t.billingMonth || "Monthly Dues"}</span>
+                  </div>
+                )}
                 <div style={{ marginTop: "4px" }}>
                   {t.paymentPlan === "PARTIAL" ? (
                     <span
@@ -259,11 +269,6 @@ export function TransactionList({ transactions, pageSize = 10 }: TransactionList
                   <Calendar size={14} color="#64748b" />
                   <span suppressHydrationWarning>{formatDateTime(t.paymentDate)}</span>
                 </div>
-                {t.notes && (
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "3px", fontStyle: "italic", maxWidth: "260px" }}>
-                    "{t.notes}"
-                  </div>
-                )}
               </td>
 
               {/* Category */}

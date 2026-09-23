@@ -75,6 +75,8 @@ export function UserTable({
         label: "Staff (Exempt)",
         remaining: 0,
         paid: 0,
+        fromMonth: null as string | null,
+        toMonth: null as string | null,
       };
     }
 
@@ -85,6 +87,8 @@ export function UserTable({
         label: "-",
         remaining: 0,
         paid: 0,
+        fromMonth: null as string | null,
+        toMonth: null as string | null,
       };
     }
 
@@ -102,12 +106,18 @@ export function UserTable({
         ? parseFloat(userTxn.balanceRemaining)
         : Math.max(0, monthlyDueAmount - paidVal);
 
+      // fromMonth / toMonth from transaction (fallback to billingMonth)
+      const txnFromMonth = userTxn.fromMonth || userTxn.billingMonth || null;
+      const txnToMonth = userTxn.toMonth || userTxn.billingMonth || null;
+
       if (userTxn.paymentPlan === "FULL" || (remVal === 0 && paidVal >= monthlyDueAmount)) {
         return {
           type: "SETTLED" as const,
           label: "Settled (Fully Paid)",
           remaining: 0,
           paid: paidVal,
+          fromMonth: txnFromMonth,
+          toMonth: txnToMonth,
         };
       }
 
@@ -117,6 +127,8 @@ export function UserTable({
           label: `Partial (₹${remVal.toLocaleString("en-IN")} Pending)`,
           remaining: remVal,
           paid: paidVal,
+          fromMonth: txnFromMonth,
+          toMonth: txnToMonth,
         };
       }
     }
@@ -127,6 +139,8 @@ export function UserTable({
       label: `Pending (₹${monthlyDueAmount.toLocaleString("en-IN")} Due)`,
       remaining: monthlyDueAmount,
       paid: 0,
+      fromMonth: null as string | null,
+      toMonth: null as string | null,
     };
   };
 
@@ -139,7 +153,7 @@ export function UserTable({
             <th style={{ whiteSpace: "nowrap" }}>User</th>
             <th style={{ whiteSpace: "nowrap" }}>Role</th>
             <th style={{ whiteSpace: "nowrap" }}>Assigned Flat & Tower</th>
-            <th style={{ whiteSpace: "nowrap" }}>Dues</th>
+            <th style={{ whiteSpace: "nowrap" }}>Dues &amp; Paid Period</th>
             <th style={{ whiteSpace: "nowrap" }}>Phone</th>
             <th style={{ whiteSpace: "nowrap" }}>Status</th>
             <th style={{ textAlign: "right", whiteSpace: "nowrap", minWidth: "180px" }}>Actions</th>
@@ -200,7 +214,7 @@ export function UserTable({
                     )}
                   </td>
 
-                  {/*  Dues Status */}
+                  {/* Dues Status + Paid Period */}
                   <td style={{ whiteSpace: "nowrap" }}>
                     {duesInfo.type === "NONE" && (
                       <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>--</span>
@@ -226,43 +240,93 @@ export function UserTable({
                     )}
 
                     {duesInfo.type === "SETTLED" && (
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "5px",
-                          padding: "3px 8px",
-                          borderRadius: "6px",
-                          fontSize: "0.775rem",
-                          fontWeight: 600,
-                          backgroundColor: "#ecfdf5",
-                          color: "#047857",
-                          border: "1px solid #a7f3d0",
-                        }}
-                      >
-                        <CheckCircle2 size={13} color="#059669" />
-                        <span>Settled (₹{duesInfo.paid.toLocaleString("en-IN")})</span>
-                      </span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            padding: "3px 8px",
+                            borderRadius: "6px",
+                            fontSize: "0.775rem",
+                            fontWeight: 600,
+                            backgroundColor: "#ecfdf5",
+                            color: "#047857",
+                            border: "1px solid #a7f3d0",
+                          }}
+                        >
+                          <CheckCircle2 size={13} color="#059669" />
+                          <span>Settled (₹{duesInfo.paid.toLocaleString("en-IN")})</span>
+                        </span>
+                        {/* Month Range Row */}
+                        {duesInfo.fromMonth && (
+                          <span
+                            style={{
+                              fontSize: "0.7rem",
+                              fontWeight: 600,
+                              color: "#047857",
+                              backgroundColor: "#f0fdf4",
+                              border: "1px solid #bbf7d0",
+                              borderRadius: "4px",
+                              padding: "2px 7px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                            title={`Paid for: ${duesInfo.fromMonth}${duesInfo.toMonth && duesInfo.toMonth !== duesInfo.fromMonth ? " to " + duesInfo.toMonth : ""}`}
+                          >
+                            📅 {duesInfo.fromMonth}
+                            {duesInfo.toMonth && duesInfo.toMonth !== duesInfo.fromMonth && (
+                              <> → {duesInfo.toMonth}</>
+                            )}
+                          </span>
+                        )}
+                      </div>
                     )}
 
                     {duesInfo.type === "PARTIAL" && (
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "5px",
-                          padding: "3px 8px",
-                          borderRadius: "6px",
-                          fontSize: "0.775rem",
-                          fontWeight: 600,
-                          backgroundColor: "#fffbeb",
-                          color: "#b45309",
-                          border: "1px solid #fde68a",
-                        }}
-                      >
-                        <PieChart size={13} color="#d97706" />
-                        <span>Partially Paid (₹{duesInfo.remaining.toLocaleString("en-IN")} due)</span>
-                      </span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            padding: "3px 8px",
+                            borderRadius: "6px",
+                            fontSize: "0.775rem",
+                            fontWeight: 600,
+                            backgroundColor: "#fffbeb",
+                            color: "#b45309",
+                            border: "1px solid #fde68a",
+                          }}
+                        >
+                          <PieChart size={13} color="#d97706" />
+                          <span>Partially Paid (₹{duesInfo.remaining.toLocaleString("en-IN")} due)</span>
+                        </span>
+                        {/* Month Range Row */}
+                        {duesInfo.fromMonth && (
+                          <span
+                            style={{
+                              fontSize: "0.7rem",
+                              fontWeight: 600,
+                              color: "#b45309",
+                              backgroundColor: "#fefce8",
+                              border: "1px solid #fde68a",
+                              borderRadius: "4px",
+                              padding: "2px 7px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                            title={`Partial payment for: ${duesInfo.fromMonth}${duesInfo.toMonth && duesInfo.toMonth !== duesInfo.fromMonth ? " to " + duesInfo.toMonth : ""}`}
+                          >
+                            📅 {duesInfo.fromMonth}
+                            {duesInfo.toMonth && duesInfo.toMonth !== duesInfo.fromMonth && (
+                              <> → {duesInfo.toMonth}</>
+                            )}
+                          </span>
+                        )}
+                      </div>
                     )}
 
                     {duesInfo.type === "PENDING" && (
