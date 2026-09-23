@@ -19,7 +19,8 @@ import { useAuth } from "../hooks/use-auth";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["USER", "SECRETARY", "ACCOUNTANT", "SECURITY"] },
-  { label: "Users & Staff", href: "/users", icon: Users, roles: ["SECRETARY", "ACCOUNTANT"] },
+  { label: "Residents / Users", href: "/users", icon: Users, roles: ["SECRETARY", "ACCOUNTANT"] },
+  { label: "Employees / Staff", href: "/employees", icon: ShieldCheck, roles: ["SECRETARY", "ACCOUNTANT"] },
   { label: "Blocks", href: "/blocks", icon: Building2, roles: ["USER", "SECRETARY", "ACCOUNTANT", "SECURITY"] },
   { label: "Flats & Units", href: "/flats", icon: Home, roles: ["USER", "SECRETARY", "ACCOUNTANT", "SECURITY"] },
   { label: "Transactions & Dues", href: "/transactions", icon: ReceiptText, roles: ["USER", "SECRETARY", "ACCOUNTANT"] },

@@ -211,8 +211,10 @@ export default function UsersPage() {
     await fetchUsersAndFlats();
   };
 
+  const residentUsers = users.filter((u) => u.role === "USER");
+
   return (
-    <DashboardShell title="Residents & Staff Directory">
+    <DashboardShell title="Society Residents Directory">
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         {/* Filters and Actions */}
         <div
@@ -236,26 +238,13 @@ export default function UsersPage() {
               />
               <input
                 type="text"
-                placeholder="Search user name, email, or phone..."
+                placeholder="Search resident name, email, or phone..."
                 className="form-input"
                 style={{ paddingLeft: "42px" }}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-
-            <select
-              className="form-select"
-              style={{ width: "160px" }}
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-            >
-              <option value="">All Roles</option>
-              <option value="USER">Residents</option>
-              <option value="SECRETARY">Secretaries</option>
-              <option value="ACCOUNTANT">Accountants</option>
-              <option value="SECURITY">Security Guards</option>
-            </select>
           </form>
 
           {isSecretary && (
@@ -264,7 +253,7 @@ export default function UsersPage() {
               className="btn btn-primary"
             >
               <Plus size={18} />
-              Add Resident / Staff
+              Add Resident
             </button>
           )}
         </div>
@@ -272,11 +261,11 @@ export default function UsersPage() {
         {/* Users Table with Dues Status Column and Direct Pay Action */}
         {loading ? (
           <div style={{ textAlign: "center", padding: "48px", color: "var(--text-secondary)" }}>
-            Loading users...
+            Loading residents...
           </div>
         ) : (
           <UserTable
-            users={users}
+            users={residentUsers}
             flats={flats}
             transactions={transactions}
             monthlyDueAmount={monthlyDueAmount}

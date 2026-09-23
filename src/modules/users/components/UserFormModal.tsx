@@ -20,6 +20,7 @@ interface UserFormModalProps {
   initialData?: UserItem | null;
   currentFlatId?: number | null;
   currentFlatRole?: "RESIDENT" | "OWNER" | "BOTH";
+  mode?: "RESIDENT" | "STAFF";
 }
 
 export function UserFormModal({
@@ -30,12 +31,15 @@ export function UserFormModal({
   initialData,
   currentFlatId,
   currentFlatRole = "RESIDENT",
+  mode = "RESIDENT",
 }: UserFormModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"USER" | "SECRETARY" | "ACCOUNTANT" | "SECURITY">("USER");
+  const [role, setRole] = useState<"USER" | "SECRETARY" | "ACCOUNTANT" | "SECURITY">(
+    mode === "STAFF" ? "ACCOUNTANT" : "USER"
+  );
   const [status, setStatus] = useState<"ACTIVE" | "INACTIVE" | "PENDING">("ACTIVE");
   const [selectedFlatId, setSelectedFlatId] = useState<string>("");
   const [flatRole, setFlatRole] = useState<"RESIDENT" | "OWNER" | "BOTH">("RESIDENT");
@@ -57,13 +61,13 @@ export function UserFormModal({
       setEmail("");
       setPhone("");
       setPassword("");
-      setRole("USER");
+      setRole(mode === "STAFF" ? "ACCOUNTANT" : "USER");
       setStatus("ACTIVE");
       setSelectedFlatId("");
       setFlatRole("RESIDENT");
     }
     setError(null);
-  }, [initialData, currentFlatId, currentFlatRole, isOpen]);
+  }, [initialData, currentFlatId, currentFlatRole, isOpen, mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,7 +133,13 @@ export function UserFormModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={initialData ? `Edit Resident / User (${initialData.name})` : "Add New User / Resident"}
+      title={
+        initialData
+          ? `Edit ${mode === "STAFF" ? "Staff / Employee" : "Resident"} (${initialData.name})`
+          : mode === "STAFF"
+          ? "Add New Employee / Staff"
+          : "Add New User / Resident"
+      }
     >
       {error && (
         <div
@@ -155,7 +165,7 @@ export function UserFormModal({
             className="form-input"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Rajesh Sharma"
+            placeholder={mode === "STAFF" ? "e.g. Vikas Sharma" : "e.g. Rajesh Sharma"}
             required
           />
         </div>
@@ -168,7 +178,7 @@ export function UserFormModal({
             className="form-input"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="e.g. rajesh@example.com"
+            placeholder={mode === "STAFF" ? "e.g. staff@society.com" : "e.g. resident@example.com"}
             required
           />
         </div>
@@ -202,17 +212,46 @@ export function UserFormModal({
         <div className="form-grid-2">
           <div className="form-group">
             <label className="form-label" htmlFor="new-user-role">Role (RBAC)</label>
-            <select
-              id="new-user-role"
-              className="form-select"
-              value={role}
-              onChange={(e) => setRole(e.target.value as "USER" | "SECRETARY" | "ACCOUNTANT" | "SECURITY")}
-            >
-              <option value="USER">USER (Resident / Owner)</option>
-              <option value="SECRETARY">SECRETARY (Admin)</option>
-              <option value="ACCOUNTANT">ACCOUNTANT (Billing)</option>
-              <option value="SECURITY">SECURITY (Guard / Gate)</option>
-            </select>
+            {mode === "RESIDENT" ? (
+              <div
+                style={{
+                  padding: "9px 12px",
+                  borderRadius: "var(--radius-md)",
+                  backgroundColor: "#f8fafc",
+                  border: "1px solid #cbd5e1",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.9rem" }}>
+                  USER (Resident / Flat Member)
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.65rem",
+                    fontWeight: 700,
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    backgroundColor: "#e0f2fe",
+                    color: "#0369a1",
+                  }}
+                >
+                  AUTO-SELECTED
+                </span>
+              </div>
+            ) : (
+              <select
+                id="new-user-role"
+                className="form-select"
+                value={role}
+                onChange={(e) => setRole(e.target.value as "SECRETARY" | "ACCOUNTANT" | "SECURITY")}
+              >
+                <option value="ACCOUNTANT">ACCOUNTANT (Financial Billing &amp; Counter)</option>
+                <option value="SECRETARY">SECRETARY (Society Admin)</option>
+                <option value="SECURITY">SECURITY (Gate Guard)</option>
+              </select>
+            )}
           </div>
 
           <div className="form-group">
@@ -224,14 +263,13 @@ export function UserFormModal({
               onChange={(e) => setStatus(e.target.value as "ACTIVE" | "INACTIVE" | "PENDING")}
             >
               <option value="ACTIVE">ACTIVE</option>
-              <option value="PENDING">PENDING</option>
               <option value="INACTIVE">INACTIVE</option>
             </select>
           </div>
         </div>
 
-        {/* Flat & Tower Assignment Section */}
-        {flats.length > 0 && (
+        {/* Flat & Tower Assignment Section (Only for Residents) */}
+        {mode === "RESIDENT" && flats.length > 0 && (
           <div
             style={{
               marginTop: "8px",

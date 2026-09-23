@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   X,
   Check,
@@ -8,51 +8,50 @@ import {
   Smartphone,
   Receipt,
   Calendar,
-  DollarSign,
   AlertCircle,
-  CheckCircle2,
-  PieChart,
   User,
   Home,
+  Search,
+  CheckCircle2,
+  Clock,
+  ChevronDown,
 } from "lucide-react";
-import { CreateTransactionData, PaymentMethod, TransactionType } from "../types/index";
-import { transactionFormValidationSchema } from "../validations/index";
+import { CreateTransactionData, PaymentMethod, TransactionItem } from "../types/index";
 import { FlatItem } from "../../flats/types/index";
 import { useAuth } from "../../../hooks/use-auth";
 import { settingService } from "../../settings/services/setting.service";
+import { transactionService } from "../services/transaction.service";
 
 interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: CreateTransactionData) => Promise<void>;
   flats: FlatItem[];
+  onSubmit: (data: CreateTransactionData) => Promise<void>;
   initialFlatId?: number;
   initialPayerName?: string;
   initialPayerId?: number;
 }
 
-// Parse month string like "September 2026" into a comparable integer (year * 12 + monthIndex)
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+// Month parser helper
 export const parseMonthYear = (str: string): number => {
   if (!str) return 0;
   const parts = str.trim().split(" ");
   if (parts.length < 2) return 0;
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-  const mIndex = monthNames.indexOf(parts[0]);
+  const mIndex = MONTH_NAMES.indexOf(parts[0]);
   const year = parseInt(parts[1], 10) || 0;
   return year * 12 + (mIndex >= 0 ? mIndex : 0);
 };
 
-// Generate months list for current year
-const generateMonthsList = () => {
-  const currentYear = new Date().getFullYear();
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-  return monthNames.map((m) => `${m} ${currentYear}`);
+// Format month integer to "Month Year" string
+export const formatMonthYear = (val: number): string => {
+  const year = Math.floor(val / 12);
+  const mIndex = val % 12;
+  return `${MONTH_NAMES[mIndex]} ${year}`;
 };
 
 export function TransactionModal({
@@ -67,212 +66,270 @@ export function TransactionModal({
   const { user } = useAuth();
   const isResident = user?.role === "USER";
 
-  // Settings charges
-  const [baseMaintenanceRate, setBaseMaintenanceRate] = useState<number>(3500);
-  const [securityChargeRate, setSecurityChargeRate] = useState<number>(500);
+  // Society dues settings
+  const [monthlyDuePerUnit, setMonthlyDuePerUnit] = useState<number>(4000);
   const [loadingSettings, setLoadingSettings] = useState<boolean>(true);
 
-  // Form states
+  // User / Flat Selection & Search
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedFlatId, setSelectedFlatId] = useState<number | null>(null);
   const [payerName, setPayerName] = useState("");
-  const [flatId, setFlatId] = useState<string>("");
+  const [payerId, setPayerId] = useState<number | undefined>(undefined);
+  const [showDropdown, setShowDropdown] = useState(false);
 
-  // Billing Month selection (har month option)
-  const availableMonths = generateMonthsList();
-  const defaultCurrentMonth = () => {
-    const d = new Date();
-    return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(d);
-  };
-  const [fromMonth, setFromMonth] = useState<string>(defaultCurrentMonth());
-  const [toMonth, setToMonth] = useState<string>(defaultCurrentMonth());
+  // Number of months to pay
+  const [monthCount, setMonthCount] = useState<number>(1);
+  const [customMonthInput, setCustomMonthInput] = useState<string>("1");
 
-  // Enforce From Month <= To Month (To Month can never be less than From Month)
-  const handleFromMonthChange = (val: string) => {
-    setFromMonth(val);
-    if (parseMonthYear(toMonth) < parseMonthYear(val)) {
-      setToMonth(val);
-    }
-  };
-
-  const handleToMonthChange = (val: string) => {
-    if (parseMonthYear(val) >= parseMonthYear(fromMonth)) {
-      setToMonth(val);
-    } else {
-      setToMonth(fromMonth);
-    }
-  };
-
-  const numMonths = Math.max(1, parseMonthYear(toMonth) - parseMonthYear(fromMonth) + 1);
-
-  // Payment Plan: FULL vs PARTIAL
-  const [paymentPlan, setPaymentPlan] = useState<"FULL" | "PARTIAL">("FULL");
-  const [amount, setAmount] = useState<string>("4000");
-
-  const [transactionType, setTransactionType] = useState<TransactionType>("MAINTENANCE");
+  // Payment method: UPI vs CASH
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("UPI");
   const [referenceNumber, setReferenceNumber] = useState("");
-  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 16));
-  const [notes, setNotes] = useState("");
+
+  // Previous transactions list for calculating last paid month
+  const [recentTransactions, setRecentTransactions] = useState<TransactionItem[]>([]);
+  const [loadingTxns, setLoadingTxns] = useState(false);
+
+  // General form states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Total monthly due from Settings
-  const totalMonthlyDue = (baseMaintenanceRate + securityChargeRate) * numMonths;
-
-  // Filter flats if resident
-  const userFlats = isResident && user
-    ? flats.filter(
-        (f) =>
-          (user.id && (f.residentId === user.id || f.ownerId === user.id)) ||
-          (user.name &&
-            (f.residentName?.toLowerCase() === user.name.toLowerCase() ||
-              f.ownerName?.toLowerCase() === user.name.toLowerCase()))
-      )
-    : [];
-
-  const effectiveFlats = isResident && userFlats.length > 0 ? userFlats : flats;
-
-  // Load society settings charges
+  // 1. Load Settings (Base rate + security fund)
   useEffect(() => {
     if (!isOpen) return;
-    async function loadConfig() {
+    async function loadConfigAndTxns() {
       try {
         setLoadingSettings(true);
-        const config = await settingService.getSettings();
+        const [config, txns] = await Promise.all([
+          settingService.getSettings(),
+          transactionService.getTransactions().catch(() => []),
+        ]);
         const base = Number(config.monthlyMaintenanceRate) || 3500;
         const sec = Number(config.monthlySecurityCharge) || 500;
-        setBaseMaintenanceRate(base);
-        setSecurityChargeRate(sec);
-
-        // If Full pay is selected, default amount to full total due
-        const total = (base + sec) * numMonths;
-        if (paymentPlan === "FULL") {
-          setAmount(String(total));
-        }
+        setMonthlyDuePerUnit(base + sec);
+        setRecentTransactions(txns);
       } catch (err) {
-        console.error("Failed to load settings in transaction modal", err);
+        console.error("Failed to load settings or transactions", err);
       } finally {
         setLoadingSettings(false);
       }
     }
-    loadConfig();
+    loadConfigAndTxns();
   }, [isOpen]);
 
-  // Keep amount synchronized when months change and payment plan is FULL
-  useEffect(() => {
-    if (paymentPlan === "FULL") {
-      setAmount(String(totalMonthlyDue));
-    }
-  }, [totalMonthlyDue, paymentPlan]);
-
-  // Handle initialization of flat & payer when modal opens
+  // 2. Initialize Selection
   useEffect(() => {
     if (!isOpen) return;
 
     if (isResident && user) {
       setPayerName(user.name);
+      setPayerId(user.id);
+      const userFlat = flats.find(
+        (f) =>
+          f.residentId === user.id ||
+          f.ownerId === user.id ||
+          f.residentName?.toLowerCase() === user.name.toLowerCase() ||
+          f.ownerName?.toLowerCase() === user.name.toLowerCase()
+      );
       if (initialFlatId) {
-        setFlatId(String(initialFlatId));
-      } else if (userFlats.length > 0) {
-        setFlatId(String(userFlats[0].id));
+        setSelectedFlatId(initialFlatId);
+      } else if (userFlat) {
+        setSelectedFlatId(userFlat.id);
       }
+      setSearchTerm(userFlat ? `Unit ${userFlat.flatNumber} - ${user.name}` : user.name);
     } else {
-      if (initialPayerName) {
-        setPayerName(initialPayerName);
-      }
       if (initialFlatId) {
-        handleFlatSelect(String(initialFlatId));
+        setSelectedFlatId(initialFlatId);
+        const found = flats.find((f) => f.id === initialFlatId);
+        const name = initialPayerName || found?.residentName || found?.ownerName || "";
+        setPayerName(name);
+        setPayerId(initialPayerId || found?.residentId || found?.ownerId || undefined);
+        setSearchTerm(found ? `Unit ${found.flatNumber} - ${name || "Unassigned"}` : name);
+      } else if (initialPayerName) {
+        const found = flats.find(
+          (f) =>
+            (initialPayerId && (f.residentId === initialPayerId || f.ownerId === initialPayerId)) ||
+            (f.residentName && f.residentName.trim().toLowerCase() === initialPayerName.trim().toLowerCase()) ||
+            (f.ownerName && f.ownerName.trim().toLowerCase() === initialPayerName.trim().toLowerCase())
+        );
+        if (found) {
+          setSelectedFlatId(found.id);
+          setPayerName(initialPayerName);
+          setPayerId(initialPayerId || found.residentId || found.ownerId || undefined);
+          setSearchTerm(`Unit ${found.flatNumber} - ${initialPayerName}`);
+        } else {
+          setSelectedFlatId(null);
+          setPayerName(initialPayerName);
+          setPayerId(initialPayerId);
+          setSearchTerm(initialPayerName);
+        }
+      } else {
+        setSelectedFlatId(null);
+        setPayerName("");
+        setPayerId(undefined);
+        setSearchTerm("");
       }
     }
-  }, [isOpen, initialFlatId, initialPayerName, flats, isResident, user]);
+    setMonthCount(1);
+    setCustomMonthInput("1");
+    setError(null);
+    setReferenceNumber("");
+  }, [isOpen, initialFlatId, initialPayerName, initialPayerId, flats, isResident, user]);
 
-  const handleFlatSelect = (idStr: string) => {
-    setFlatId(idStr);
-    if (!isResident && idStr) {
-      const flat = flats.find((f) => f.id === Number(idStr));
-      if (flat) {
-        if (flat.residentName) {
-          setPayerName(flat.residentName);
-        } else if (flat.ownerName) {
-          setPayerName(flat.ownerName);
+  // Build searchable items list (from Flats & residents/owners)
+  const searchableUnits = useMemo(() => {
+    return flats.map((flat) => {
+      const resident = flat.residentName?.trim();
+      const owner = flat.ownerName?.trim();
+      const unitLabel = `${flat.blockName ? `${flat.blockName} ` : ""}Unit ${flat.flatNumber}`;
+      const primaryName = resident || owner || "Unassigned Resident";
+      const secondaryInfo = resident && owner && resident !== owner ? `(Owner: ${owner})` : "";
+      return {
+        flatId: flat.id,
+        flatNumber: flat.flatNumber,
+        blockName: flat.blockName,
+        payerName: primaryName,
+        payerId: flat.residentId || flat.ownerId || undefined,
+        displayLabel: `${unitLabel} — ${primaryName} ${secondaryInfo}`.trim(),
+        searchText: `${unitLabel} ${primaryName} ${owner || ""} ${flat.flatNumber}`.toLowerCase(),
+      };
+    });
+  }, [flats]);
+
+  const filteredUnits = useMemo(() => {
+    if (!searchTerm.trim()) return searchableUnits;
+    const term = searchTerm.toLowerCase();
+    return searchableUnits.filter((u) => u.searchText.includes(term));
+  }, [searchableUnits, searchTerm]);
+
+  // Determine the Last Paid Month for the currently selected flat / payer
+  const lastPaidMonthInfo = useMemo(() => {
+    if (!selectedFlatId && !payerName.trim()) {
+      return null;
+    }
+
+    // Filter successful transactions for this flat or payer
+    const userTxns = recentTransactions.filter((t) => {
+      const matchFlat = selectedFlatId && t.flatId === selectedFlatId;
+      const matchPayer =
+        (payerId && t.payerId === payerId) ||
+        (payerName && t.payerName.toLowerCase() === payerName.toLowerCase());
+      return (matchFlat || matchPayer) && t.status === "SUCCESS";
+    });
+
+    if (userTxns.length === 0) {
+      return null;
+    }
+
+    // Find the highest toMonth (or fromMonth / billingMonth)
+    let maxMonthVal = 0;
+    let maxMonthStr = "";
+
+    for (const txn of userTxns) {
+      const targetStr = txn.toMonth || txn.fromMonth || txn.billingMonth;
+      if (targetStr) {
+        const val = parseMonthYear(targetStr);
+        if (val > maxMonthVal) {
+          maxMonthVal = val;
+          maxMonthStr = targetStr;
         }
       }
     }
+
+    return maxMonthVal > 0 ? { val: maxMonthVal, str: maxMonthStr } : null;
+  }, [selectedFlatId, payerName, payerId, recentTransactions]);
+
+  // Compute From Month and To Month based on last paid month and monthCount
+  const { startMonthStr, endMonthStr, currentMonthVal } = useMemo(() => {
+    const now = new Date();
+    const currentVal = now.getFullYear() * 12 + now.getMonth();
+
+    let startVal: number;
+    if (lastPaidMonthInfo) {
+      // Agle month se shuru hoga
+      startVal = lastPaidMonthInfo.val + 1;
+    } else {
+      // Pehla transaction hai -> Current month se shuru
+      startVal = currentVal;
+    }
+
+    const count = Math.max(1, monthCount);
+    const endVal = startVal + count - 1;
+
+    return {
+      startMonthVal: startVal,
+      endMonthVal: endVal,
+      startMonthStr: formatMonthYear(startVal),
+      endMonthStr: formatMonthYear(endVal),
+      currentMonthVal: currentVal,
+    };
+  }, [lastPaidMonthInfo, monthCount]);
+
+  // Total amount to pay
+  const totalAmountToPay = monthlyDuePerUnit * Math.max(1, monthCount);
+
+  // Handle month count selection (e.g. 1, 3, 6, 12, or custom)
+  const handleSelectMonthCount = (count: number) => {
+    setMonthCount(count);
+    setCustomMonthInput(String(count));
   };
 
-  const handleSelectFullPay = () => {
-    setPaymentPlan("FULL");
-    setAmount(String(totalMonthlyDue));
-  };
-
-  const handleSelectPartialPay = () => {
-    setPaymentPlan("PARTIAL");
-    if (Number(amount) >= totalMonthlyDue) {
-      setAmount(String(Math.round(totalMonthlyDue / 2)));
+  const handleCustomMonthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setCustomMonthInput(val);
+    const num = parseInt(val, 10);
+    if (!isNaN(num) && num > 0) {
+      setMonthCount(num);
     }
   };
 
-  const parsedAmount = Math.max(0, Number(amount) || 0);
-  const remainingBalance = paymentPlan === "FULL"
-    ? 0
-    : Math.max(0, totalMonthlyDue - parsedAmount);
-  const percentPaid = totalMonthlyDue > 0
-    ? Math.min(100, Math.round((parsedAmount / totalMonthlyDue) * 100))
-    : 100;
+  const handleSelectUnit = (unit: typeof searchableUnits[0]) => {
+    setSelectedFlatId(unit.flatId);
+    setPayerName(unit.payerName);
+    setPayerId(unit.payerId);
+    setSearchTerm(unit.displayLabel);
+    setShowDropdown(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    const formattedAmount = parsedAmount.toFixed(2);
-    if (parsedAmount <= 0) {
-      setError("Please enter a valid payment amount greater than ₹0.");
+    if (!payerName.trim()) {
+      setError("Please select a User / Flat.");
       return;
     }
 
-    if (parseMonthYear(fromMonth) > parseMonthYear(toMonth)) {
-      setError("From Month must be less than or equal to To Month.");
-      return;
-    }
-
-    const billingPeriodLabel = fromMonth === toMonth ? fromMonth : `${fromMonth} to ${toMonth}`;
-    // Prepare note description
-    const planLabel = paymentPlan === "FULL"
-      ? `Full Payment (100% Cleared for ${billingPeriodLabel})`
-      : `Partial Payment for ${billingPeriodLabel} (₹${remainingBalance.toLocaleString("en-IN")} pending)`;
-    
-    const combinedNotes = notes.trim()
-      ? `${notes.trim()} | ${planLabel}`
-      : planLabel;
-
-    const payload: CreateTransactionData = {
-      payerName: (isResident && user ? user.name : payerName).trim(),
-      payerId: isResident && user ? user.id : undefined,
-      flatId: flatId ? Number(flatId) : undefined,
-      amount: formattedAmount,
-      transactionType,
-      paymentMethod,
-      referenceNumber: referenceNumber.trim() || undefined,
-      paymentDate: new Date(paymentDate).toISOString(),
-      notes: combinedNotes,
-      billingMonth: fromMonth === toMonth ? fromMonth : `${fromMonth} - ${toMonth}`,
-      fromMonth,
-      toMonth,
-      paymentPlan,
-      balanceRemaining: remainingBalance.toFixed(2),
-    };
-
-    const validation = transactionFormValidationSchema.safeParse(payload);
-    if (!validation.success) {
-      setError(validation.error.errors[0].message);
+    if (monthCount < 1) {
+      setError("Please select at least 1 month duration.");
       return;
     }
 
     setLoading(true);
     try {
+      const billingPeriodLabel =
+        startMonthStr === endMonthStr ? startMonthStr : `${startMonthStr} to ${endMonthStr}`;
+      
+      const payload: CreateTransactionData = {
+        payerName: payerName.trim(),
+        payerId: payerId,
+        flatId: selectedFlatId || undefined,
+        amount: totalAmountToPay.toFixed(2),
+        transactionType: "MAINTENANCE",
+        paymentMethod: paymentMethod,
+        referenceNumber: referenceNumber.trim() || undefined,
+        paymentDate: new Date().toISOString(),
+        notes: `Paid for ${monthCount} month(s) [${billingPeriodLabel}] via ${paymentMethod}`,
+        billingMonth: billingPeriodLabel,
+        fromMonth: startMonthStr,
+        toMonth: endMonthStr,
+        paymentPlan: "FULL",
+        balanceRemaining: "0.00",
+      };
+
       await onSubmit(payload);
       onClose();
     } catch (err: unknown) {
-      setError((err as Error).message || "Failed to record transaction");
+      setError((err as Error).message || "Failed to record payment");
     } finally {
       setLoading(false);
     }
@@ -302,12 +359,11 @@ export function TransactionModal({
         className="glass-panel animate-fade-in"
         style={{
           width: "100%",
-          maxWidth: "600px",
+          maxWidth: "520px",
           backgroundColor: "#ffffff",
           borderRadius: "16px",
           boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
           overflow: "hidden",
-          maxHeight: "92vh",
           display: "flex",
           flexDirection: "column",
         }}
@@ -321,14 +377,13 @@ export function TransactionModal({
             alignItems: "center",
             justifyContent: "space-between",
             backgroundColor: "#f8fafc",
-            flexShrink: 0,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <div
               style={{
-                width: "38px",
-                height: "38px",
+                width: "40px",
+                height: "40px",
                 borderRadius: "10px",
                 background: isResident
                   ? "linear-gradient(135deg, #6366f1, #4f46e5)"
@@ -341,19 +396,11 @@ export function TransactionModal({
               {isResident ? <User size={20} color="#ffffff" /> : <Receipt size={20} color="#ffffff" />}
             </div>
             <div>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a" }}>
-                {isResident ? "Pay My Monthly  Dues" : "Record / Collect Payment Receipt"}
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>
+                {isResident ? "Pay Society Maintenance" : "Collect / Record Payment"}
               </h3>
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  color: isResident ? "#4f46e5" : "#059669",
-                  fontWeight: 600,
-                }}
-              >
-                {isResident
-                  ? `Resident Self-Payment Portal (${user?.name})`
-                  : `Staff Session: ${user?.name || "Accountant"} (${user?.role || "Staff"})`}
+              <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                Monthly Rate: <strong>₹{monthlyDuePerUnit.toLocaleString("en-IN")}</strong> / month
               </span>
             </div>
           </div>
@@ -378,8 +425,7 @@ export function TransactionModal({
             padding: "20px 24px",
             display: "flex",
             flexDirection: "column",
-            gap: "16px",
-            overflowY: "auto",
+            gap: "18px",
           }}
         >
           {error && (
@@ -401,288 +447,150 @@ export function TransactionModal({
             </div>
           )}
 
-          {/* Dynamic Settings Rates Banner */}
+          {/* 1. SELECT USER / FLAT DROPDOWN FIELD */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <label
+              htmlFor="txn-select-unit"
+              className="form-label"
+              style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}
+            >
+              <Home size={15} color="#059669" />
+              Select User / Flat Unit *
+            </label>
+            <select
+              id="txn-select-unit"
+              className="form-select"
+              value={selectedFlatId ? String(selectedFlatId) : ""}
+              disabled={isResident}
+              onChange={(e) => {
+                const idNum = Number(e.target.value);
+                const found = searchableUnits.find((u) => u.flatId === idNum);
+                if (found) {
+                  setSelectedFlatId(found.flatId);
+                  setPayerName(found.payerName);
+                  setPayerId(found.payerId);
+                  setSearchTerm(found.displayLabel);
+                } else {
+                  setSelectedFlatId(null);
+                  setPayerName("");
+                  setPayerId(undefined);
+                  setSearchTerm("");
+                }
+              }}
+              required
+              style={{
+                fontSize: "0.95rem",
+                fontWeight: 600,
+                padding: "10px 14px",
+                borderColor: "#cbd5e1",
+                backgroundColor: isResident ? "#f8fafc" : "#ffffff",
+                cursor: isResident ? "not-allowed" : "pointer",
+              }}
+            >
+              <option value="">-- Choose Flat Unit / Resident --</option>
+              {searchableUnits.map((u) => (
+                <option key={u.flatId} value={u.flatId}>
+                  {u.displayLabel}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Previous History Banner (Purane transaction ke bad se calculation) */}
           <div
             style={{
-              padding: "12px 16px",
+              padding: "10px 14px",
+              borderRadius: "8px",
+              backgroundColor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              fontSize: "0.8rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <Clock size={15} color="#6366f1" />
+              <span style={{ color: "#475569" }}>
+                Last Paid Month:{" "}
+                <strong style={{ color: lastPaidMonthInfo ? "#059669" : "#64748b" }}>
+                  {lastPaidMonthInfo ? lastPaidMonthInfo.str : "None (Starting from Current Month)"}
+                </strong>
+              </span>
+            </div>
+          </div>
+
+          {/* 2. NUMBER OF MONTHS SELECTOR (1 to 12 Months Dropdown) */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <label
+              htmlFor="month-count-select"
+              className="form-label"
+              style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}
+            >
+              <Calendar size={15} color="#059669" />
+              Select Number of Months (1 to 12) *
+            </label>
+            <select
+              id="month-count-select"
+              className="form-select"
+              value={monthCount}
+              onChange={(e) => handleSelectMonthCount(Number(e.target.value))}
+              style={{
+                fontSize: "0.95rem",
+                fontWeight: 600,
+                padding: "10px 14px",
+                borderColor: "#cbd5e1",
+              }}
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
+                <option key={num} value={num}>
+                  {num} {num === 1 ? "Month" : "Months"} ({num} × ₹{monthlyDuePerUnit.toLocaleString("en-IN")} = ₹{(num * monthlyDuePerUnit).toLocaleString("en-IN")})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Dynamic Billing Range & Amount Calculated Display */}
+          <div
+            style={{
+              padding: "14px 16px",
               borderRadius: "10px",
               background: "linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)",
               border: "1px solid #a7f3d0",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              flexWrap: "wrap",
-              gap: "8px",
             }}
           >
             <div>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#065f46" }}>
-                ⚙️ Society Configured Monthly Dues (Settings)
+              <div style={{ fontSize: "0.725rem", fontWeight: 700, color: "#065f46", textTransform: "uppercase" }}>
+                Payment Covering ({monthCount} {monthCount === 1 ? "Month" : "Months"})
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#047857", marginTop: "2px" }}>
-                Base Maintenance: <strong>₹{baseMaintenanceRate}</strong> + Security Fund: <strong>₹{securityChargeRate}</strong>
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: "0.7rem", color: "#047857", fontWeight: 600 }}>Total Due / Month</div>
-              <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#065f46" }}>
-                ₹{totalMonthlyDue.toLocaleString("en-IN")}
-              </div>
-            </div>
-          </div>
-
-          {/* Month Selector ("Har Month Pay Krne Ka Option") */}
-          <div className="form-grid-2">
-            <div className="form-group">
-              <label className="form-label" htmlFor="txn-from-month">
-                <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                  <Calendar size={14} color="#059669" />
-                  From Month *
-                </span>
-              </label>
-              <select
-                id="txn-from-month"
-                className="form-select"
-                value={fromMonth}
-                onChange={(e) => handleFromMonthChange(e.target.value)}
-                required
-              >
-                {availableMonths.map((m) => (
-                  <option key={m} value={m}>
-                    {m} {m === defaultCurrentMonth() ? "(Current Month)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="txn-to-month">
-                <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                  <Calendar size={14} color="#059669" />
-                  To Month *
-                </span>
-              </label>
-              <select
-                id="txn-to-month"
-                className="form-select"
-                value={toMonth}
-                onChange={(e) => handleToMonthChange(e.target.value)}
-                required
-              >
-                {availableMonths.map((m) => {
-                  const isPrior = parseMonthYear(m) < parseMonthYear(fromMonth);
-                  return (
-                    <option key={m} value={m} disabled={isPrior}>
-                      {m} {m === defaultCurrentMonth() ? "(Current Month)" : ""} {isPrior ? "(Earlier than From Month)" : ""}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-          </div>
-
-          <div className="form-grid-2">
-            <div className="form-group">
-              <label className="form-label" htmlFor="txn-cat">Payment Category</label>
-              <select
-                id="txn-cat"
-                className="form-select"
-                value={transactionType}
-                onChange={(e) => setTransactionType(e.target.value as TransactionType)}
-              >
-                <option value="MAINTENANCE">Monthly Maintenance</option>
-                <option value="SECURITY_CHARGE">Security Charge</option>
-                <option value="PENALTY">Late Payment Penalty</option>
-                <option value="EVENT">Festival / Society Event</option>
-                <option value="WATER">Water Dues</option>
-                <option value="OTHER">Other Expense</option>
-              </select>
-            </div>
-              <button
-                type="button"
-                onClick={handleSelectFullPay}
-                style={{
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: paymentPlan === "FULL" ? "2px solid #059669" : "1px solid var(--border-color)",
-                  backgroundColor: paymentPlan === "FULL" ? "rgba(16, 185, 129, 0.1)" : "#ffffff",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "all 0.15s ease",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "4px",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, color: "#065f46" }}>
-                    <CheckCircle2 size={16} color="#059669" />
-                    <span>🟢 Fully Pay (Full ₹{totalMonthlyDue})</span>
-                  </div>
-                  {paymentPlan === "FULL" && (
-                    <span style={{ fontSize: "0.65rem", padding: "1px 6px", borderRadius: "4px", background: "#10b981", color: "#fff", fontWeight: 700 }}>
-                      SELECTED
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: "0.725rem", color: "#047857" }}>
-                  100% Cleared • ₹0 balance remaining
-                </span>
-              </button>
-
-          </div>
-
-          {/* Payment Plan: FULLY PAY vs PARTIAL PAY */}
-          <div className="form-group">
-            <label className="form-label" style={{ fontWeight: 700 }}>
-              Payment Option *
-            </label>
-            <div className="form-grid-2">
-              {/* Option 1: Fully Pay */}
-              {/* <button
-                type="button"
-                onClick={handleSelectFullPay}
-                style={{
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: paymentPlan === "FULL" ? "2px solid #059669" : "1px solid var(--border-color)",
-                  backgroundColor: paymentPlan === "FULL" ? "rgba(16, 185, 129, 0.1)" : "#ffffff",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "all 0.15s ease",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "4px",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, color: "#065f46" }}>
-                    <CheckCircle2 size={16} color="#059669" />
-                    <span>🟢 Fully Pay (Full ₹{totalMonthlyDue})</span>
-                  </div>
-                  {paymentPlan === "FULL" && (
-                    <span style={{ fontSize: "0.65rem", padding: "1px 6px", borderRadius: "4px", background: "#10b981", color: "#fff", fontWeight: 700 }}>
-                      SELECTED
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: "0.725rem", color: "#047857" }}>
-                  100% Cleared • ₹0 balance remaining
-                </span>
-              </button> */}
-
-              {/* Option 2: Partial Pay */}
-              {/* <button
-                type="button"
-                onClick={handleSelectPartialPay}
-                style={{
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: paymentPlan === "PARTIAL" ? "2px solid #d97706" : "1px solid var(--border-color)",
-                  backgroundColor: paymentPlan === "PARTIAL" ? "rgba(245, 158, 11, 0.1)" : "#ffffff",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "all 0.15s ease",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "4px",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, color: "#92400e" }}>
-                    <PieChart size={16} color="#d97706" />
-                    <span>🟡 Partial Pay (Part Payment)</span>
-                  </div>
-                  {paymentPlan === "PARTIAL" && (
-                    <span style={{ fontSize: "0.65rem", padding: "1px 6px", borderRadius: "4px", background: "#f59e0b", color: "#fff", fontWeight: 700 }}>
-                      SELECTED
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: "0.725rem", color: "#b45309" }}>
-                  Pay custom amount & track remaining due
-                </span>
-              </button> */}
-            </div>
-          </div>
-
-          {/* Amount Input & Live Calculation Breakdown */}
-          <div
-            style={{
-              padding: "14px",
-              borderRadius: "10px",
-              backgroundColor: "#f8fafc",
-              border: "1px solid var(--border-color)",
-            }}
-          >
-            <div className="form-grid-2" style={{ alignItems: "center" }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" htmlFor="txn-amount" style={{ fontWeight: 600 }}>
-                  Amount to Pay Now (INR) *
-                </label>
-                <input
-                  id="txn-amount"
-                  type="number"
-                  min="1"
-                  step="0.01"
-                  className="form-input"
-                  placeholder="e.g. 4000"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  required
-                />
-              </div>
-
-              {/* Real-time Dues Status */}
-              <div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 600 }}>
-                  Monthly Status for {fromMonth === toMonth ? fromMonth : `${fromMonth} to ${toMonth}`}:
-                </div>
-                {paymentPlan === "FULL" ? (
-                  <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "6px", color: "#059669", fontWeight: 700, fontSize: "0.9rem" }}>
-                    <CheckCircle2 size={16} />
-                    <span>Full Payment (₹0 Balance)</span>
-                  </div>
+              <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f172a", marginTop: "2px" }}>
+                {startMonthStr === endMonthStr ? (
+                  startMonthStr
                 ) : (
-                  <div style={{ marginTop: "4px" }}>
-                    <div style={{ fontSize: "0.85rem", fontWeight: 700, color: remainingBalance > 0 ? "#dc2626" : "#059669" }}>
-                      Remaining Due: ₹{remainingBalance.toLocaleString("en-IN")}
-                    </div>
-                    <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>
-                      Covering {percentPaid}% of total ₹{totalMonthlyDue.toLocaleString("en-IN")}
-                    </div>
-                  </div>
+                  <span>
+                    {startMonthStr} <span style={{ color: "#059669" }}>→</span> {endMonthStr}
+                  </span>
                 )}
               </div>
             </div>
 
-            {/* Visual Progress Bar for Partial Pay */}
-            {paymentPlan === "PARTIAL" && (
-              <div style={{ marginTop: "12px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem", color: "var(--text-secondary)", marginBottom: "4px" }}>
-                  <span>Paid: ₹{parsedAmount.toLocaleString("en-IN")} ({percentPaid}%)</span>
-                  <span style={{ color: remainingBalance > 0 ? "#dc2626" : "#059669", fontWeight: 600 }}>
-                    Pending: ₹{remainingBalance.toLocaleString("en-IN")}
-                  </span>
-                </div>
-                <div style={{ width: "100%", height: "7px", borderRadius: "9999px", background: "#e2e8f0", overflow: "hidden" }}>
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${percentPaid}%`,
-                      background: percentPaid >= 100 ? "#10b981" : "linear-gradient(90deg, #f59e0b, #eab308)",
-                      transition: "width 0.2s ease",
-                    }}
-                  />
-                </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: "0.7rem", color: "#047857", fontWeight: 600 }}>Total Payable</div>
+              <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "#065f46" }}>
+                ₹{totalAmountToPay.toLocaleString("en-IN")}
               </div>
-            )}
+            </div>
           </div>
 
-          {/* Payment Method Selector (CASH vs UPI) */}
-          <div className="form-group">
-            <label className="form-label">Payment Mode *</label>
-            <div className="form-grid-2">
+          {/* 3. PAYMENT MODE (ONLINE / UPI vs CASH) */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label" style={{ fontWeight: 700 }}>
+              Payment Mode *
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
               <button
                 type="button"
                 onClick={() => setPaymentMethod("UPI")}
@@ -691,12 +599,13 @@ export function TransactionModal({
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "8px",
-                  padding: "10px",
+                  padding: "11px",
                   borderRadius: "10px",
-                  border: paymentMethod === "UPI" ? "2px solid #6366f1" : "1px solid var(--border-color)",
+                  border: paymentMethod === "UPI" ? "2px solid #6366f1" : "1px solid #cbd5e1",
                   backgroundColor: paymentMethod === "UPI" ? "rgba(99, 102, 241, 0.08)" : "#ffffff",
-                  color: paymentMethod === "UPI" ? "#4f46e5" : "var(--text-primary)",
+                  color: paymentMethod === "UPI" ? "#4f46e5" : "#334155",
                   fontWeight: 700,
+                  fontSize: "0.875rem",
                   cursor: "pointer",
                   transition: "all 0.15s ease",
                 }}
@@ -713,12 +622,13 @@ export function TransactionModal({
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "8px",
-                  padding: "10px",
+                  padding: "11px",
                   borderRadius: "10px",
-                  border: paymentMethod === "CASH" ? "2px solid #10b981" : "1px solid var(--border-color)",
+                  border: paymentMethod === "CASH" ? "2px solid #10b981" : "1px solid #cbd5e1",
                   backgroundColor: paymentMethod === "CASH" ? "rgba(16, 185, 129, 0.08)" : "#ffffff",
-                  color: paymentMethod === "CASH" ? "#059669" : "var(--text-primary)",
+                  color: paymentMethod === "CASH" ? "#059669" : "#334155",
                   fontWeight: 700,
+                  fontSize: "0.875rem",
                   cursor: "pointer",
                   transition: "all 0.15s ease",
                 }}
@@ -729,104 +639,30 @@ export function TransactionModal({
             </div>
           </div>
 
-          {/* Associated Flat & Payer Name */}
-          <div className="form-grid-2">
-            <div className="form-group">
-              <label className="form-label" htmlFor="txn-flat">
-                {isResident ? "Your Flat / Unit *" : "Select Flat / Unit"}
-              </label>
-              <select
-                id="txn-flat"
-                className="form-select"
-                value={flatId}
-                onChange={(e) => handleFlatSelect(e.target.value)}
-                required={isResident}
-              >
-                {!isResident && <option value="">Direct Resident / Other</option>}
-                {effectiveFlats.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.blockName ? `${f.blockName} - ` : ""}Unit {f.flatNumber}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="txn-payer">
-                {isResident ? "Resident Name (Self) *" : "Payer Name *"}
-              </label>
-              <input
-                id="txn-payer"
-                className="form-input"
-                placeholder="e.g. Rajesh Malhotra"
-                value={isResident && user ? user.name : payerName}
-                onChange={(e) => setPayerName(e.target.value)}
-                disabled={isResident}
-                required
-                style={{
-                  backgroundColor: isResident ? "#f1f5f9" : "#ffffff",
-                  cursor: isResident ? "not-allowed" : "text",
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Payment Date & Reference */}
-          <div className="form-grid-2">
-            <div className="form-group">
-              <label className="form-label" htmlFor="txn-date">Payment Date & Time *</label>
-              <input
-                id="txn-date"
-                type="datetime-local"
-                className="form-input"
-                value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="txn-ref">
-                {paymentMethod === "UPI" ? "UPI Ref / UTR Number" : "Cash Receipt Book No."}
-              </label>
-              <input
-                id="txn-ref"
-                className="form-input"
-                placeholder={paymentMethod === "UPI" ? "e.g. UPI/883719024" : "e.g. BOOK-12/RCP-45"}
-                value={referenceNumber}
-                onChange={(e) => setReferenceNumber(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div className="form-group">
-            <label className="form-label" htmlFor="txn-notes">Remarks / Notes (Optional)</label>
+          {/* Optional Reference / UTR Number for Online / Cash receipt */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label" style={{ fontSize: "0.8rem" }}>
+              {paymentMethod === "UPI" ? "UPI Ref / UTR Number (Optional)" : "Cash Receipt Book No. (Optional)"}
+            </label>
             <input
-              id="txn-notes"
+              type="text"
               className="form-input"
-              placeholder={
-                isResident
-                  ? `Self payment for ${fromMonth === toMonth ? fromMonth : `${fromMonth} to ${toMonth}`}`
-                  : `e.g. Paid at society office for ${fromMonth === toMonth ? fromMonth : `${fromMonth} to ${toMonth}`}`
-              }
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              placeholder={paymentMethod === "UPI" ? "e.g. UPI/893710245" : "e.g. BOOK-04/RCP-12"}
+              value={referenceNumber}
+              onChange={(e) => setReferenceNumber(e.target.value)}
             />
           </div>
 
-          {/* Actions */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
+          {/* Submit Actions */}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "6px" }}>
             <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
+            <button type="submit" className="btn btn-primary" disabled={loading || !payerName.trim()}>
               <Check size={18} />
               {loading
                 ? "Processing..."
-                : isResident
-                ? `Pay Now (₹${parsedAmount.toLocaleString("en-IN")})`
-                : `Confirm & Save (₹${parsedAmount.toLocaleString("en-IN")})`}
+                : `Confirm Payment (₹${totalAmountToPay.toLocaleString("en-IN")})`}
             </button>
           </div>
         </form>
