@@ -78,6 +78,16 @@ export function UserTable({
       };
     }
 
+    // No flat assigned -> No dues
+    if (userFlats.length === 0) {
+      return {
+        type: "NONE" as const,
+        label: "-",
+        remaining: 0,
+        paid: 0,
+      };
+    }
+
     // Find any transaction for this user or their assigned flats
     const userTxn = transactions.find(
       (t) =>
@@ -191,6 +201,10 @@ export function UserTable({
 
                   {/*  Dues Status */}
                   <td style={{ whiteSpace: "nowrap" }}>
+                    {duesInfo.type === "NONE" && (
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>--</span>
+                    )}
+
                     {duesInfo.type === "EXEMPT" && (
                       <span
                         style={{
@@ -286,6 +300,8 @@ export function UserTable({
                     <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", justifyContent: "flex-end" }}>
                       {/* Pay  Dues CTA Button */}
                       {canPayThisUser &&
+                        assignedFlats.length > 0 &&
+                        duesInfo.type !== "NONE" &&
                         duesInfo.type !== "EXEMPT" &&
                         duesInfo.type !== "SETTLED" &&
                         onPayDues && (
