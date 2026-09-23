@@ -41,7 +41,8 @@ export function FlatGrid({
 
   return (
     <div className="custom-table-container">
-      <table className="custom-table" style={{ minWidth: "950px" }}>
+      <div className="table-scroll-wrapper">
+        <table className="custom-table" style={{ minWidth: "950px" }}>
         <thead>
           <tr>
             <th style={{ whiteSpace: "nowrap" }}>Flat Unit</th>
@@ -221,7 +222,8 @@ export function FlatGrid({
             })
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
 
       {/* Common Pagination */}
       <Pagination {...paginationProps} itemLabel="flats" />

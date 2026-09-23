@@ -37,7 +37,8 @@ export function BlockCardGrid({
 
   return (
     <div className="custom-table-container">
-      <table className="custom-table" style={{ minWidth: "850px" }}>
+      <div className="table-scroll-wrapper">
+        <table className="custom-table" style={{ minWidth: "850px" }}>
         <thead>
           <tr>
             <th style={{ whiteSpace: "nowrap" }}>Tower / Building</th>
@@ -151,7 +152,8 @@ export function BlockCardGrid({
             ))
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
 
       {/* Common Pagination */}
       <Pagination {...paginationProps} itemLabel="towers" />

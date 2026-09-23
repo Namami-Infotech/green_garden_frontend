@@ -122,8 +122,9 @@ export function TransactionList({ transactions, pageSize = 10 }: TransactionList
   };
 
   return (
-    <div className="glass-panel" style={{ overflowX: "auto" }}>
-      <table className="custom-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+    <div className="glass-panel" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="table-scroll-wrapper">
+        <table className="custom-table" style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid var(--border-color)" }}>
             <th style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase" }}>
@@ -285,7 +286,8 @@ export function TransactionList({ transactions, pageSize = 10 }: TransactionList
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
 
       {/* Common Pagination */}
       <Pagination {...paginationProps} itemLabel="transactions" />

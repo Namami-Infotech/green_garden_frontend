@@ -132,7 +132,8 @@ export function UserTable({
 
   return (
     <div className="custom-table-container">
-      <table className="custom-table" style={{ minWidth: "1050px" }}>
+      <div className="table-scroll-wrapper">
+        <table className="custom-table" style={{ minWidth: "1050px" }}>
         <thead>
           <tr>
             <th style={{ whiteSpace: "nowrap" }}>User</th>
@@ -394,7 +395,8 @@ export function UserTable({
             })
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
 
       {/* Common Pagination */}
       <Pagination {...paginationProps} itemLabel="users" />
