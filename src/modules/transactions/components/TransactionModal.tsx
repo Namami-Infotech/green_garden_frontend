@@ -498,15 +498,6 @@ export function TransactionModal({
                 <option value="OTHER">Other Expense</option>
               </select>
             </div>
-          </div>
-
-          {/* Payment Plan: FULLY PAY vs PARTIAL PAY */}
-          <div className="form-group">
-            <label className="form-label" style={{ fontWeight: 700 }}>
-              Payment Option *
-            </label>
-            <div className="form-grid-2">
-              {/* Option 1: Fully Pay */}
               <button
                 type="button"
                 onClick={handleSelectFullPay}
@@ -539,8 +530,49 @@ export function TransactionModal({
                 </span>
               </button>
 
+          </div>
+
+          {/* Payment Plan: FULLY PAY vs PARTIAL PAY */}
+          <div className="form-group">
+            <label className="form-label" style={{ fontWeight: 700 }}>
+              Payment Option *
+            </label>
+            <div className="form-grid-2">
+              {/* Option 1: Fully Pay */}
+              {/* <button
+                type="button"
+                onClick={handleSelectFullPay}
+                style={{
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: paymentPlan === "FULL" ? "2px solid #059669" : "1px solid var(--border-color)",
+                  backgroundColor: paymentPlan === "FULL" ? "rgba(16, 185, 129, 0.1)" : "#ffffff",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all 0.15s ease",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, color: "#065f46" }}>
+                    <CheckCircle2 size={16} color="#059669" />
+                    <span>🟢 Fully Pay (Full ₹{totalMonthlyDue})</span>
+                  </div>
+                  {paymentPlan === "FULL" && (
+                    <span style={{ fontSize: "0.65rem", padding: "1px 6px", borderRadius: "4px", background: "#10b981", color: "#fff", fontWeight: 700 }}>
+                      SELECTED
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: "0.725rem", color: "#047857" }}>
+                  100% Cleared • ₹0 balance remaining
+                </span>
+              </button> */}
+
               {/* Option 2: Partial Pay */}
-              <button
+              {/* <button
                 type="button"
                 onClick={handleSelectPartialPay}
                 style={{
@@ -570,7 +602,7 @@ export function TransactionModal({
                 <span style={{ fontSize: "0.725rem", color: "#b45309" }}>
                   Pay custom amount & track remaining due
                 </span>
-              </button>
+              </button> */}
             </div>
           </div>
 
