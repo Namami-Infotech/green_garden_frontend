@@ -225,19 +225,7 @@ export function UserFormModal({
                 }}
               >
                 <span style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.9rem" }}>
-                  USER (Resident / Flat Member)
-                </span>
-                <span
-                  style={{
-                    fontSize: "0.65rem",
-                    fontWeight: 700,
-                    padding: "2px 6px",
-                    borderRadius: "4px",
-                    backgroundColor: "#e0f2fe",
-                    color: "#0369a1",
-                  }}
-                >
-                  AUTO-SELECTED
+                  USER 
                 </span>
               </div>
             ) : (

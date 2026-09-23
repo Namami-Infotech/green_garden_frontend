@@ -45,7 +45,7 @@ export function FlatGrid({
         <table className="custom-table" style={{ minWidth: "950px" }}>
         <thead>
           <tr>
-            <th style={{ whiteSpace: "nowrap" }}>Flat Unit</th>
+            <th style={{ whiteSpace: "nowrap" }}>House Unit</th>
             <th style={{ whiteSpace: "nowrap" }}>Tower & Floor</th>
           
             <th style={{ whiteSpace: "nowrap" }}>Occupancy Status</th>
@@ -87,7 +87,7 @@ export function FlatGrid({
                         <Home size={18} color="#059669" />
                       </div>
                       <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.95rem" }}>
-                        Flat {flat.flatNumber}
+                        House {flat.flatNumber}
                       </div>
                     </div>
                   </td>

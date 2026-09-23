@@ -544,7 +544,7 @@ export function TransactionModal({
             >
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
                 <option key={num} value={num}>
-                  {num} {num === 1 ? "Month" : "Months"} ({num} × ₹{monthlyDuePerUnit.toLocaleString("en-IN")} = ₹{(num * monthlyDuePerUnit).toLocaleString("en-IN")})
+                  {num} {num === 1 ? "Month" : "Months"}
                 </option>
               ))}
             </select>

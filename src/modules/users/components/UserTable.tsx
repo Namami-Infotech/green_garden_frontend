@@ -432,7 +432,7 @@ export function UserTable({
               </th>
 
               <th style={{ whiteSpace: "nowrap" }}>
-                Assigned Flat & Tower
+                Assigned House & Block
               </th>
 
               <th style={{ whiteSpace: "nowrap" }}>
@@ -568,7 +568,7 @@ export function UserTable({
                               {flat.blockName
                                 ? `${flat.blockName} - `
                                 : ""}
-                              Flat {flat.flatNumber}
+                              House {flat.flatNumber}
                             </span>
                           </div>
                         ))
