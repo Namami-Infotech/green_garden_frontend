@@ -39,35 +39,16 @@ function setCookie(name: string, value: string, days = 7) {
 
 function deleteCookie(name: string) {
   if (typeof document === "undefined") return;
-  const expired = "expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0";
-  document.cookie = `${name}=; ${expired}; path=/; SameSite=Lax`;
-  document.cookie = `${name}=; ${expired}; path=/`;
-  document.cookie = `${name}=; ${expired}`;
-
-  try {
-    const hostname = window.location.hostname;
-    document.cookie = `${name}=; ${expired}; path=/; domain=${hostname}`;
-    if (hostname.includes(".")) {
-      const domainParts = hostname.split(".");
-      const rootDomain = domainParts.slice(-2).join(".");
-      document.cookie = `${name}=; ${expired}; path=/; domain=.${rootDomain}`;
-    }
-  } catch {
-    // ignore
-  }
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
 }
 
 function readAuthFromStorage(): { token: string | null; user: CurrentUser | null } {
   if (typeof window === "undefined") return { token: null, user: null };
   try {
-    const savedToken = getCookie("socity_auth_token") || getCookie("accessToken") || getCookie("access_token");
+    const savedToken = getCookie("socity_auth_token");
     const savedUserStr = getCookie("socity_auth_user");
-    const isMockToken =
-      !savedToken ||
-      savedToken === "mock_token" ||
-      savedToken === "mock-jwt-token";
 
-    if (!isMockToken && savedUserStr) {
+    if (savedToken && savedUserStr) {
       return { token: savedToken, user: JSON.parse(savedUserStr) };
     }
   } catch {
