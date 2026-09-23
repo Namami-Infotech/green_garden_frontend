@@ -24,6 +24,17 @@ export function BlockCardGrid({
   const { hasRole } = useAuth();
   const isSecretary = hasRole("SECRETARY");
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "ACTIVE":
+        return <span className="badge badge-active" style={{ fontSize: "0.72rem" }}>Active</span>;
+      case "PENDING":
+        return <span className="badge badge-occupied" style={{ fontSize: "0.72rem" }}>Pending</span>;
+      default:
+        return <span className="badge badge-vacant" style={{ fontSize: "0.72rem" }}>Inactive</span>;
+    }
+  };
+
   return (
     <div className="custom-table-container">
       <table className="custom-table" style={{ minWidth: "850px" }}>
@@ -91,11 +102,7 @@ export function BlockCardGrid({
                 </td>
 
                 {/* Status */}
-                <td style={{ whiteSpace: "nowrap" }}>
-                  <span className="badge badge-active" style={{ fontSize: "0.72rem" }}>
-                    Active Tower
-                  </span>
-                </td>
+                <td style={{ whiteSpace: "nowrap" }}>{getStatusBadge(block.status)}</td>
 
                 {/* Actions */}
                 <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>

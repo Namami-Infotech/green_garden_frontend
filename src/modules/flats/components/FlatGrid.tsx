@@ -167,7 +167,7 @@ export function FlatGrid({
                             cursor: "pointer",
                             flexShrink: 0,
                           }}
-                          title={`Pay Maintenance Dues for Flat ${flat.flatNumber}`}
+                          title={`Pay  Dues for Flat ${flat.flatNumber}`}
                         >
                           <Receipt size={14} color="#059669" />
                           <span>Pay Dues</span>

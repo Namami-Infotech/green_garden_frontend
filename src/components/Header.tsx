@@ -13,6 +13,10 @@ interface HeaderProps {
 export function Header({ title, onToggleSidebar }: HeaderProps) {
   const { user, login, token } = useAuth();
 
+  console.log(user, token, user, "saaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+
+
   const handleRoleSwitch = async (newRole: UserRole) => {
     if (!user) return;
 
@@ -71,48 +75,20 @@ export function Header({ title, onToggleSidebar }: HeaderProps) {
         </span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        {/* Desktop Role Switcher: Full Button Group */}
-        <div className="desktop-role-switcher">
-          <Shield size={14} color="#64748b" style={{ marginLeft: "4px" }} />
-          <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginRight: "4px" }}>Role:</span>
-          {(["SECRETARY", "ACCOUNTANT", "SECURITY", "USER"] as UserRole[]).map((r) => (
-            <button
-              key={r}
-              onClick={() => handleRoleSwitch(r)}
-              style={{
-                background: user?.role === r ? "linear-gradient(135deg, #10b981, #059669)" : "transparent",
-                color: user?.role === r ? "#ffffff" : "#475569",
-                border: "none",
-                fontSize: "0.75rem",
-                padding: "4px 10px",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontWeight: 600,
-                transition: "all 0.15s ease",
-                boxShadow: user?.role === r ? "0 2px 6px rgba(16, 185, 129, 0.3)" : "none",
-              }}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-
-        {/* Mobile Role Switcher: Compact Clean Selector */}
-        <div className="mobile-role-switcher">
-          <Shield size={16} color="#10b981" />
-          <select
-            className="mobile-role-select"
-            value={user?.role || "USER"}
-            onChange={(e) => handleRoleSwitch(e.target.value as UserRole)}
-            aria-label="Switch Role"
-          >
-            <option value="SECRETARY">Secretary</option>
-            <option value="ACCOUNTANT">Accountant</option>
-            <option value="SECURITY">Security</option>
-            <option value="USER">Resident</option>
-          </select>
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        {/* <Shield size={16} color="#10b981" /> */}
+        <span
+          style={{
+            fontSize: "0.8rem",
+            color: "#059669",
+            fontWeight: 700,
+            background: "#ecfdf5",
+            padding: "4px 10px",
+            borderRadius: "6px",
+          }}
+        >
+          {user?.role}
+        </span>
       </div>
     </header>
   );

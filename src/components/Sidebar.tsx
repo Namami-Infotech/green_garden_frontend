@@ -20,7 +20,7 @@ import { useAuth } from "../hooks/use-auth";
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["USER", "SECRETARY", "ACCOUNTANT", "SECURITY"] },
   { label: "Users & Staff", href: "/users", icon: Users, roles: ["SECRETARY", "ACCOUNTANT"] },
-  { label: "Towers & Blocks", href: "/blocks", icon: Building2, roles: ["USER", "SECRETARY", "ACCOUNTANT", "SECURITY"] },
+  { label: "Blocks", href: "/blocks", icon: Building2, roles: ["USER", "SECRETARY", "ACCOUNTANT", "SECURITY"] },
   { label: "Flats & Units", href: "/flats", icon: Home, roles: ["USER", "SECRETARY", "ACCOUNTANT", "SECURITY"] },
   { label: "Transactions & Dues", href: "/transactions", icon: ReceiptText, roles: ["USER", "SECRETARY", "ACCOUNTANT"] },
   { label: "Society Settings", href: "/settings", icon: Settings, roles: ["SECRETARY", "ACCOUNTANT"] },

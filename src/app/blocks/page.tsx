@@ -73,12 +73,12 @@ export default function BlocksPage() {
   };
 
   return (
-    <DashboardShell title="Towers & Blocks Management">
+    <DashboardShell title="Building & Tower Management">
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         <div className="page-header-row">
           <div>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
-              Configure and manage society wings, high-rise towers, and floor layouts.
+              Configure and manage society towers and buildings.
             </p>
           </div>
           {isSecretary && (
@@ -94,7 +94,7 @@ export default function BlocksPage() {
 
         {loading ? (
           <div style={{ textAlign: "center", padding: "48px", color: "var(--text-secondary)" }}>
-            Loading towers & blocks...
+            Loading blocks...
           </div>
         ) : (
           <BlockCardGrid

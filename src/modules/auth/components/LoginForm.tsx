@@ -32,27 +32,11 @@ export function LoginForm() {
       login(res.token, res.user);
       router.push("/dashboard");
     } catch (err: unknown) {
-      console.warn("Backend auth failed, falling back to local session:", err);
-      login("mock-jwt-token", {
-        id: 1,
-        name: email.includes("secretary")
-          ? "Demo Secretary"
-          : email.includes("accountant")
-          ? "Demo Accountant"
-          : email.includes("security")
-          ? "Bahadur Singh (Security)"
-          : "Demo Resident",
-        email,
-        role: email.includes("secretary")
-          ? "SECRETARY"
-          : email.includes("accountant")
-          ? "ACCOUNTANT"
-          : email.includes("security")
-          ? "SECURITY"
-          : "USER",
-        status: "ACTIVE",
-      });
-      router.push("/dashboard");
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Login failed. Please try again.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -5,6 +5,7 @@ export interface BlockItem {
   totalFloors: number;
   createdAt: string;
   updatedAt: string;
+  status: string;
 }
 
 export interface CreateBlockData {

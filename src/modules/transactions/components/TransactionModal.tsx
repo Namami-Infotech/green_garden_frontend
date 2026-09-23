@@ -342,7 +342,7 @@ export function TransactionModal({
             </div>
             <div>
               <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a" }}>
-                {isResident ? "Pay My Monthly Maintenance Dues" : "Record / Collect Payment Receipt"}
+                {isResident ? "Pay My Monthly  Dues" : "Record / Collect Payment Receipt"}
               </h3>
               <span
                 style={{

@@ -950,7 +950,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* RIGHT: Pending Maintenance Dues (Kiska Payment Baki Hai) */}
+          {/* RIGHT: Pending  Dues (Kiska Payment Baki Hai) */}
           <div
             className="glass-panel"
             style={{
@@ -1007,7 +1007,7 @@ export default function DashboardPage() {
               >
                 <CheckCircle2 size={32} color="#059669" style={{ margin: "0 auto 8px auto" }} />
                 <div style={{ fontWeight: 800, color: "#065f46", fontSize: "1rem" }}>
-                  All Maintenance Dues Cleared!
+                  All  Dues Cleared!
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "#047857", marginTop: "4px" }}>
                   100% of occupied flats have settled their maintenance for the current cycle.

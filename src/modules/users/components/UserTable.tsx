@@ -59,11 +59,11 @@ export function UserTable({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "ACTIVE":
-        return <span className="badge badge-active">Active</span>;
+        return <span className="badge badge-active" style={{ fontSize: "0.72rem" }}>Active</span>;
       case "PENDING":
-        return <span className="badge badge-occupied">Pending</span>;
+        return <span className="badge badge-occupied" style={{ fontSize: "0.72rem" }}>Pending</span>;
       default:
-        return <span className="badge badge-vacant">Inactive</span>;
+        return <span className="badge badge-vacant" style={{ fontSize: "0.72rem" }}>Inactive</span>;
     }
   };
 
@@ -128,7 +128,7 @@ export function UserTable({
             <th style={{ whiteSpace: "nowrap" }}>User</th>
             <th style={{ whiteSpace: "nowrap" }}>Role</th>
             <th style={{ whiteSpace: "nowrap" }}>Assigned Flat & Tower</th>
-            <th style={{ whiteSpace: "nowrap" }}>Maintenance Dues</th>
+            <th style={{ whiteSpace: "nowrap" }}>Dues</th>
             <th style={{ whiteSpace: "nowrap" }}>Phone</th>
             <th style={{ whiteSpace: "nowrap" }}>Status</th>
             <th style={{ textAlign: "right", whiteSpace: "nowrap", minWidth: "180px" }}>Actions</th>
@@ -189,7 +189,7 @@ export function UserTable({
                     )}
                   </td>
 
-                  {/* Maintenance Dues Status */}
+                  {/*  Dues Status */}
                   <td style={{ whiteSpace: "nowrap" }}>
                     {duesInfo.type === "EXEMPT" && (
                       <span
@@ -284,33 +284,50 @@ export function UserTable({
                   {/* Actions: Pay Dues Button + Secretary Controls */}
                   <td style={{ textAlign: "right", whiteSpace: "nowrap", minWidth: "180px" }}>
                     <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", justifyContent: "flex-end" }}>
-                      {/* Pay Maintenance Dues CTA Button */}
-                      {canPayThisUser && duesInfo.type !== "EXEMPT" && duesInfo.type !== "SETTLED" && onPayDues && (
-                        <button
-                          onClick={() => onPayDues(user, assignedFlats[0])}
-                          className="btn"
-                          style={{
-                            padding: "6px 12px",
-                            fontSize: "0.8rem",
-                            fontWeight: 700,
-                            borderRadius: "6px",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            backgroundColor: "#ecfdf5",
-                            color: "#047857",
-                            border: "1px solid #a7f3d0",
-                            boxShadow: "0 1px 3px rgba(16, 185, 129, 0.1)",
-                            transition: "all 0.15s ease",
-                            cursor: "pointer",
-                            flexShrink: 0,
-                          }}
-                          title={`Pay Maintenance Dues for ${user.name}`}
-                        >
-                          <Receipt size={14} color="#059669" />
-                          <span>Pay Dues</span>
-                        </button>
-                      )}
+                      {/* Pay  Dues CTA Button */}
+                      {canPayThisUser &&
+                        duesInfo.type !== "EXEMPT" &&
+                        duesInfo.type !== "SETTLED" &&
+                        onPayDues && (
+                          <button
+                            onClick={() => {
+                              if (assignedFlats[0]?.blockName) {
+                                onPayDues(user, assignedFlats[0]);
+                              }
+                            }}
+                            disabled={!assignedFlats[0]?.blockName}
+                            className="btn"
+                            style={{
+                              padding: "6px 12px",
+                              fontSize: "0.8rem",
+                              fontWeight: 700,
+                              borderRadius: "6px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              backgroundColor: assignedFlats[0]?.blockName ? "#ecfdf5" : "#f3f4f6",
+                              color: assignedFlats[0]?.blockName ? "#047857" : "#9ca3af",
+                              border: assignedFlats[0]?.blockName
+                                ? "1px solid #a7f3d0"
+                                : "1px solid #d1d5db",
+                              boxShadow: assignedFlats[0]?.blockName
+                                ? "0 1px 3px rgba(16, 185, 129, 0.1)"
+                                : "none",
+                              transition: "all 0.15s ease",
+                              cursor: assignedFlats[0]?.blockName ? "pointer" : "not-allowed",
+                              flexShrink: 0,
+                              opacity: assignedFlats[0]?.blockName ? 1 : 0.6,
+                            }}
+                            title={
+                              assignedFlats[0]?.blockName
+                                ? `Pay  Dues for ${user.name}`
+                                : "Block name is not available"
+                            }
+                          >
+                            <Receipt size={14} color={assignedFlats[0]?.blockName ? "#059669" : "#9ca3af"} />
+                            <span>Pay Dues</span>
+                          </button>
+                        )}
 
                       {/* Secretary Edit & Delete Actions */}
                       {isSecretary && (

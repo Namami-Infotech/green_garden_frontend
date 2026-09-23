@@ -170,7 +170,7 @@ export default function TransactionsPage() {
               }}
             >
               <Receipt size={18} />
-              <span>Pay My Maintenance Dues</span>
+              <span>Pay My  Dues</span>
             </button>
           )}
         </div>
