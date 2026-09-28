@@ -54,15 +54,15 @@ export default function DashboardPage() {
   const isStaff = hasRole(["SECRETARY", "ACCOUNTANT"]);
 
   const [stats, setStats] = useState({
-    totalBlocks: 3,
-    totalFlats: 4,
-    occupiedFlats: 3,
-    totalUsers: 5,
-    maintenanceRate: 3500,
-    securityCharge: 500,
-    societyName: "Green Place Residential Society",
-    visitorPassRequired: "true",
-    quietHours: "22:00 - 07:00",
+    totalBlocks: 0,
+    totalFlats: 0,
+    occupiedFlats: 0,
+    totalUsers: 0,
+    maintenanceRate: 0,
+    securityCharge: 0,
+    societyName: "",
+    visitorPassRequired: "false",
+    quietHours: "",
   });
 
   const [blocksList, setBlocksList] = useState<BlockItem[]>([]);
@@ -78,21 +78,21 @@ export default function DashboardPage() {
 
   // Financial dues calculations
   const [duesMetrics, setDuesMetrics] = useState({
-    totalExpectedDues: 12000,
-    totalCollected: 10000,
-    onlineUPI: 8000,
-    cashAmount: 2000,
-    pendingBalance: 2000,
-    collectionPercent: 83,
+    totalExpectedDues: 0,
+    totalCollected: 0,
+    onlineUPI: 0,
+    cashAmount: 0,
+    pendingBalance: 0,
+    collectionPercent: 0,
   });
 
   // Dues settlement counts
   const [settlementStats, setSettlementStats] = useState({
-    settledCount: 2,
-    partialCount: 1,
+    settledCount: 0,
+    partialCount: 0,
     pendingCount: 0,
-    settlementRate: 67,
-    totalPendingAmount: 2000,
+    settlementRate: 0,
+    totalPendingAmount: 0,
   });
 
   const [pendingDuesList, setPendingDuesList] = useState<PendingDueItem[]>([]);
@@ -117,8 +117,8 @@ export default function DashboardPage() {
       ]);
 
       const totalMonthlyRate =
-        (Number(settings.monthlyMaintenanceRate) || 3500) +
-        (Number(settings.monthlySecurityCharge) || 500);
+        (Number(settings.monthlyMaintenanceRate) || 0) +
+        (Number(settings.monthlySecurityCharge) || 0);
 
       const occupied = flatsRes.flats.filter((f) => f.occupancyStatus !== "VACANT");
 
@@ -127,11 +127,11 @@ export default function DashboardPage() {
         totalFlats: flatsRes.flats.length,
         occupiedFlats: occupied.length,
         totalUsers: usersRes.total,
-        maintenanceRate: Number(settings.monthlyMaintenanceRate) || 3500,
-        securityCharge: Number(settings.monthlySecurityCharge) || 500,
-        societyName: settings.societyName || "Green Place Residential Society",
-        visitorPassRequired: settings.visitorPassRequired || "true",
-        quietHours: `${settings.quietHoursStart || "22:00"} - ${settings.quietHoursEnd || "07:00"}`,
+        maintenanceRate: Number(settings.monthlyMaintenanceRate) || 0,
+        securityCharge: Number(settings.monthlySecurityCharge) || 0,
+        societyName: settings.societyName || "Residential Society",
+        visitorPassRequired: settings.visitorPassRequired || "false",
+        quietHours: `${settings.quietHoursStart || "--:--"} - ${settings.quietHoursEnd || "--:--"}`,
       });
 
       setBlocksList(blocks);
@@ -168,14 +168,19 @@ export default function DashboardPage() {
         const residentUser = usersRes.users.find(
           (u) => u.id === flat.residentId || u.id === flat.ownerId
         );
-        const residentName = residentUser?.name || "Resident";
+        const residentName = residentUser?.name || flat.residentName || "Resident";
 
-        const txn = txns.find(
-          (t) =>
-            t.flatId === flat.id ||
-            (residentUser && t.payerId === residentUser.id) ||
-            t.payerName.toLowerCase().includes(residentName.toLowerCase())
-        );
+        // Match by payerId first (reliable), then exact name (case-insensitive)
+        const txn = txns.find((t) => {
+          if (t.flatId && t.flatId === flat.id) return true;
+          if (residentUser && t.payerId === residentUser.id) return true;
+          if (t.payerName && residentName) {
+            return (
+              t.payerName.trim().toLowerCase() === residentName.trim().toLowerCase()
+            );
+          }
+          return false;
+        });
 
         if (txn) {
           const paidVal = parseFloat(txn.amount) || 0;
@@ -554,7 +559,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 3: Towers & Total Flats */}
+          {/* Card 3: Block & Flat Inventory */}
           <div
             className="glass-panel"
             style={{
@@ -572,14 +577,14 @@ export default function DashboardPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <span style={{ fontSize: "0.72rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  Towers & Inventory
+                  Block & Inventory
                 </span>
                 <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginTop: "2px" }}>
                   <span style={{ fontSize: "1.5rem", fontWeight: 800, color: "#0f172a" }}>
-                    {stats.totalBlocks} Towers
+                    {stats.totalBlocks} Blocks
                   </span>
                   <span style={{ fontSize: "0.775rem", color: "#0d9488", fontWeight: 700 }}>
-                    ({stats.totalFlats} Flats)
+                    ({stats.totalFlats} Houses)
                   </span>
                 </div>
               </div>
@@ -684,7 +689,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 3. TOWER-WISE FLAT INVENTORY BREAKDOWN (PER TOWER ME KITNE FLAT HAIN) */}
+        {/* 3. TOWER-WISE FLAT INVENTORY BREAKDOWN */}
         <div
           className="glass-panel"
           style={{
@@ -735,9 +740,7 @@ export default function DashboardPage() {
             }}
           >
             {blocksList.map((block) => {
-              const blockFlats = flatsList.filter(
-                (f) => f.blockId === block.id || f.blockName?.toLowerCase().includes(block.name.toLowerCase().split(" ")[0])
-              );
+              const blockFlats = flatsList.filter((f) => f.blockId === block.id);
               const occupiedFlats = blockFlats.filter((f) => f.occupancyStatus !== "VACANT");
               const vacantFlats = blockFlats.length - occupiedFlats.length;
 
@@ -827,7 +830,7 @@ export default function DashboardPage() {
             alignItems: "start",
           }}
         >
-         
+          {/* LEFT: Recent Payments */}
           <div
             className="glass-panel"
             style={{
@@ -856,7 +859,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>
-                    Recent Payments 
+                    Recent Payments
                   </h2>
                   <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
                     Latest verified maintenance collections across society
@@ -950,7 +953,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* RIGHT: Pending  Dues (Kiska Payment Baki Hai) */}
+          {/* RIGHT: Pending Dues */}
           <div
             className="glass-panel"
             style={{
@@ -1007,7 +1010,7 @@ export default function DashboardPage() {
               >
                 <CheckCircle2 size={32} color="#059669" style={{ margin: "0 auto 8px auto" }} />
                 <div style={{ fontWeight: 800, color: "#065f46", fontSize: "1rem" }}>
-                  All  Dues Cleared!
+                  All Dues Cleared!
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "#047857", marginTop: "4px" }}>
                   100% of occupied flats have settled their maintenance for the current cycle.

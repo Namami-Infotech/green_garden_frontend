@@ -13,7 +13,7 @@ interface HeaderProps {
 export function Header({ title, onToggleSidebar }: HeaderProps) {
   const { user, login, token } = useAuth();
 
-  console.log(user, token, user, "saaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  // console.log(user, token, user, "saaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
 
 
