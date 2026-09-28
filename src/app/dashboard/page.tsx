@@ -141,7 +141,6 @@ export default function DashboardPage() {
   const [flatsList, setFlatsList] = useState<FlatItem[]>([]);
   const [usersList, setUsersList] = useState<UserItem[]>([]);
   const [allTransactions, setAllTransactions] = useState<TransactionItem[]>([]);
-  const [pendingDuesList, setPendingDuesList] = useState<PendingDueItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Modal State for instant payment collection
@@ -152,11 +151,11 @@ export default function DashboardPage() {
 
   const monthlyTotalRate = stats.maintenanceRate + stats.securityCharge;
 
-  // Generate list of available selectable months (past 12 months)
+  // Generate list of available selectable months (from 24 months in future to 12 months in past)
   const availableMonths = useMemo(() => {
     const months: { value: string; label: string }[] = [];
     const base = new Date();
-    for (let i = -1; i <= 11; i++) {
+    for (let i = -24; i <= 12; i++) {
       const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
       const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const lbl = d.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
@@ -203,60 +202,6 @@ export default function DashboardPage() {
       setFlatsList(flatsRes.flats);
       setUsersList(usersRes.users);
       setAllTransactions(txns);
-
-      // Calculate Pending Dues List
-      const totalMonthlyRate =
-        (Number(settings.monthlyMaintenanceRate) || 0) +
-        (Number(settings.monthlySecurityCharge) || 0);
-
-      const duesAttention: PendingDueItem[] = [];
-
-      occupied.forEach((flat) => {
-        const residentUser = usersRes.users.find(
-          (u) => u.id === flat.residentId || u.id === flat.ownerId
-        );
-        const residentName = residentUser?.name || flat.residentName || "Resident";
-
-        const txn = txns.find((t) => {
-          if (t.flatId && t.flatId === flat.id) return true;
-          if (residentUser && t.payerId === residentUser.id) return true;
-          if (t.payerName && residentName) {
-            return t.payerName.trim().toLowerCase() === residentName.trim().toLowerCase();
-          }
-          return false;
-        });
-
-        if (txn) {
-          const paidVal = parseFloat(txn.amount) || 0;
-          const remVal = txn.balanceRemaining
-            ? parseFloat(txn.balanceRemaining)
-            : Math.max(0, totalMonthlyRate - paidVal);
-
-          if (remVal > 0 || txn.paymentPlan === "PARTIAL") {
-            duesAttention.push({
-              flatId: flat.id,
-              flatNumber: flat.flatNumber,
-              blockName: flat.blockName || "Tower",
-              payerName: residentName,
-              payerId: residentUser?.id,
-              remainingAmount: remVal,
-              type: "PARTIAL",
-            });
-          }
-        } else {
-          duesAttention.push({
-            flatId: flat.id,
-            flatNumber: flat.flatNumber,
-            blockName: flat.blockName || "Tower",
-            payerName: residentName,
-            payerId: residentUser?.id,
-            remainingAmount: totalMonthlyRate,
-            type: "PENDING",
-          });
-        }
-      });
-
-      setPendingDuesList(duesAttention);
     } catch (err) {
       console.error("Dashboard failed to load:", err);
     } finally {
@@ -286,24 +231,90 @@ export default function DashboardPage() {
     }
   };
 
-  // Helper: Extract "YYYY-MM" from transaction
-  const getTxnMonth = (t: TransactionItem): string => {
-    if (t.billingMonth) {
-      const match = t.billingMonth.match(/(\d{4})-(\d{2})/);
-      if (match) return `${match[1]}-${match[2]}`;
-      const d = new Date(t.billingMonth);
-      if (!isNaN(d.getTime())) {
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  // ----------------------------------------------------
+  // MONTH & ADVANCE RANGE RECOGNITION HELPERS
+  // ----------------------------------------------------
+  const MONTH_NAMES_LIST = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  // Converts any month/date string into integer: year * 12 + monthIndex (0..11)
+  const parseMonthVal = (str: any): number | null => {
+    if (str == null) return null;
+    if (str instanceof Date) {
+      return isNaN(str.getTime()) ? null : str.getFullYear() * 12 + str.getMonth();
+    }
+    const s = String(str).trim();
+    if (!s) return null;
+
+    // "YYYY-MM"
+    const ymMatch = s.match(/^(\d{4})-(\d{1,2})$/);
+    if (ymMatch) {
+      return Number(ymMatch[1]) * 12 + (Number(ymMatch[2]) - 1);
+    }
+
+    // "Month YYYY" or "Mon YYYY" (e.g. "October 2026", "Sep 2027", "September 2027")
+    const parts = s.split(/\s+/);
+    if (parts.length >= 2) {
+      const monthPart = parts[0].toLowerCase();
+      const yearPart = parseInt(parts[1], 10);
+      if (!isNaN(yearPart) && yearPart > 1900 && yearPart < 2200) {
+        const idx = MONTH_NAMES_LIST.findIndex((m) =>
+          m.toLowerCase().startsWith(monthPart)
+        );
+        if (idx !== -1) {
+          return yearPart * 12 + idx;
+        }
       }
     }
-    const rawDate = t.paymentDate || t.createdAt;
-    if (rawDate) {
-      const d = new Date(rawDate);
-      if (!isNaN(d.getTime())) {
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      }
+
+    // Standard date parsing (e.g. ISO string or "2026-10-01")
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear() * 12 + d.getMonth();
     }
-    return "";
+
+    return null;
+  };
+
+  // Extracts start and end month indices covered by a transaction
+  const getTxnMonthRange = (t: TransactionItem): { startVal: number; endVal: number; totalMonths: number } => {
+    let startVal = parseMonthVal(t.fromMonth);
+    let endVal = parseMonthVal(t.toMonth);
+
+    // If billingMonth contains range like "October 2026 to September 2027"
+    if (t.billingMonth && t.billingMonth.includes(" to ")) {
+      const [fromStr, toStr] = t.billingMonth.split(" to ");
+      if (startVal == null) startVal = parseMonthVal(fromStr);
+      if (endVal == null) endVal = parseMonthVal(toStr);
+    }
+
+    if (t.billingMonth && t.billingMonth.includes(" - ")) {
+      const [fromStr, toStr] = t.billingMonth.split(" - ");
+      if (startVal == null) startVal = parseMonthVal(fromStr);
+      if (endVal == null) endVal = parseMonthVal(toStr);
+    }
+
+    // Single month in billingMonth
+    if (startVal == null && t.billingMonth) {
+      startVal = parseMonthVal(t.billingMonth);
+    }
+    if (endVal == null && t.billingMonth) {
+      endVal = parseMonthVal(t.billingMonth);
+    }
+
+    // Fallback to payment date / createdAt
+    const paymentVal = parseMonthVal(t.paymentDate || t.createdAt);
+    if (startVal == null) startVal = paymentVal ?? 0;
+    if (endVal == null) endVal = startVal;
+
+    if (endVal < startVal) {
+      endVal = startVal;
+    }
+
+    const totalMonths = Math.max(1, endVal - startVal + 1);
+    return { startVal, endVal, totalMonths };
   };
 
   // Helper: Check if transaction was made today
@@ -324,21 +335,54 @@ export default function DashboardPage() {
     }
   };
 
-  // 1. THIS MONTH METRICS (Filtered by selectedMonth)
+  // 1. THIS MONTH METRICS (Filtered by selectedMonth, recognizing multi-month advance coverage)
   const monthFilteredTxns = useMemo(() => {
-    return allTransactions.filter((t) => getTxnMonth(t) === selectedMonth);
+    const targetMonthVal = parseMonthVal(selectedMonth);
+    if (targetMonthVal == null) return [];
+
+    return allTransactions
+      .filter((t) => (t.status || "SUCCESS") === "SUCCESS")
+      .map((t) => {
+        const range = getTxnMonthRange(t);
+        const paymentVal = parseMonthVal(t.paymentDate || t.createdAt);
+        const totalAmt = parseFloat(t.amount) || 0;
+
+        // Condition 1: Billing period covers selected month (e.g. paid advance up to Oct 2027)
+        const coversSelectedMonth =
+          targetMonthVal >= range.startVal && targetMonthVal <= range.endVal;
+
+        // Condition 2: Payment physically collected in this month
+        const paidInSelectedMonth = paymentVal === targetMonthVal;
+
+        if (!coversSelectedMonth && !paidInSelectedMonth) {
+          return null;
+        }
+
+        // Determine monthly portion for the selected month
+        let effectiveAmount = totalAmt;
+        if (coversSelectedMonth && range.totalMonths > 1) {
+          effectiveAmount = totalAmt / range.totalMonths;
+        }
+
+        return {
+          ...t,
+          effectiveAmount,
+          isAdvanceCovered: coversSelectedMonth && paymentVal !== targetMonthVal,
+        };
+      })
+      .filter(Boolean) as (TransactionItem & { effectiveAmount: number; isAdvanceCovered: boolean })[];
   }, [allTransactions, selectedMonth]);
 
   const monthCash = useMemo(() => {
     return monthFilteredTxns
       .filter((t) => t.paymentMethod === "CASH")
-      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+      .reduce((acc, t) => acc + (t.effectiveAmount || 0), 0);
   }, [monthFilteredTxns]);
 
   const monthOnline = useMemo(() => {
     return monthFilteredTxns
       .filter((t) => t.paymentMethod !== "CASH")
-      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+      .reduce((acc, t) => acc + (t.effectiveAmount || 0), 0);
   }, [monthFilteredTxns]);
 
   const monthTotalCollection = monthCash + monthOnline;
@@ -378,7 +422,7 @@ export default function DashboardPage() {
   const monthMaintenanceCollected = useMemo(() => {
     return monthFilteredTxns
       .filter((t) => t.transactionType === "MAINTENANCE" || t.transactionType === "SECURITY_CHARGE")
-      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+      .reduce((acc, t) => acc + (t.effectiveAmount || 0), 0);
   }, [monthFilteredTxns]);
 
   const pendingAmountThisMonth = Math.max(0, expectedMonthlyDues - monthMaintenanceCollected);
@@ -386,6 +430,92 @@ export default function DashboardPage() {
     expectedMonthlyDues > 0
       ? Math.min(100, Math.round((monthMaintenanceCollected / expectedMonthlyDues) * 100))
       : 0;
+
+  // 4. DYNAMIC PENDING DUES ATTENTION LIST (Calculated specifically for selectedMonth)
+  const pendingDuesList = useMemo(() => {
+    const targetMonthVal = parseMonthVal(selectedMonth);
+    if (targetMonthVal == null) return [];
+
+    const totalMonthlyRate =
+      (Number(stats.maintenanceRate) || 0) + (Number(stats.securityCharge) || 0) || 4000;
+
+    const duesAttention: PendingDueItem[] = [];
+    const occupied = flatsList.filter((f) => f.occupancyStatus !== "VACANT");
+
+    occupied.forEach((flat) => {
+      const residentUser = usersList.find(
+        (u) => u.id === flat.residentId || u.id === flat.ownerId
+      );
+      const residentName = residentUser?.name || flat.residentName || flat.ownerName || "Resident";
+
+      // Find all successful transactions for this flat or resident
+      const userTxns = allTransactions.filter((t) => {
+        if ((t.status || "SUCCESS") !== "SUCCESS") return false;
+        if (t.flatId && Number(t.flatId) === Number(flat.id)) return true;
+        if (residentUser && t.payerId && Number(t.payerId) === Number(residentUser.id)) return true;
+        if (
+          t.payerName &&
+          residentName &&
+          t.payerName.trim().toLowerCase() === residentName.trim().toLowerCase()
+        ) {
+          return true;
+        }
+        return false;
+      });
+
+      // Find the furthest month this flat has paid up to
+      let maxPaidMonthVal = -1;
+      let matchingTxn: TransactionItem | null = null;
+
+      for (const t of userTxns) {
+        const range = getTxnMonthRange(t);
+        if (range.endVal > maxPaidMonthVal) {
+          maxPaidMonthVal = range.endVal;
+          matchingTxn = t;
+        }
+      }
+
+      // If flat has paid for or past the selected month -> NOT PENDING!
+      if (maxPaidMonthVal >= targetMonthVal) {
+        return; // Dues are completely cleared for this cycle
+      }
+
+      // If flat paid partially for this exact month
+      if (
+        matchingTxn &&
+        maxPaidMonthVal === targetMonthVal &&
+        matchingTxn.paymentPlan === "PARTIAL" &&
+        matchingTxn.balanceRemaining
+      ) {
+        const remVal = parseFloat(matchingTxn.balanceRemaining);
+        if (remVal > 0) {
+          duesAttention.push({
+            flatId: flat.id,
+            flatNumber: flat.flatNumber,
+            blockName: flat.blockName || "Tower",
+            payerName: residentName,
+            payerId: residentUser?.id,
+            remainingAmount: remVal,
+            type: "PARTIAL",
+          });
+          return;
+        }
+      }
+
+      // Otherwise this flat is unpaid / pending for selectedMonth
+      duesAttention.push({
+        flatId: flat.id,
+        flatNumber: flat.flatNumber,
+        blockName: flat.blockName || "Tower",
+        payerName: residentName,
+        payerId: residentUser?.id,
+        remainingAmount: totalMonthlyRate,
+        type: "PENDING",
+      });
+    });
+
+    return duesAttention;
+  }, [flatsList, usersList, allTransactions, selectedMonth, stats.maintenanceRate, stats.securityCharge]);
 
   // 4. CATEGORY BREAKDOWN STATS & GRAPH DATA (Base Monthly Maintenance + Security Charge Per Month)
   const categoryStats = useMemo(() => {
@@ -407,7 +537,10 @@ export default function DashboardPage() {
     const otherTotals: Record<string, { total: number; count: number }> = {};
 
     targetTxns.forEach((t) => {
-      const amt = parseFloat(t.amount) || 0;
+      const amt =
+        (t as any).effectiveAmount != null
+          ? (t as any).effectiveAmount
+          : (parseFloat(t.amount) || 0);
       const type = (t.transactionType as TransactionType) || "MAINTENANCE";
 
       if (type === "MAINTENANCE") {
@@ -1966,7 +2099,9 @@ export default function DashboardPage() {
               >
                 <span style={{ color: "rgba(255,255,255,0.8)" }}>Paid Occupied Units:</span>
                 <strong style={{ color: "#34d399", fontWeight: 700 }}>
-                  {categoryStats.baseMaintenanceCount} of {stats.occupiedFlats} Flats
+                  {stats.occupiedFlats > 0
+                    ? `${Math.max(0, stats.occupiedFlats - pendingDuesList.length)} of ${stats.occupiedFlats} Flats`
+                    : `${categoryStats.baseMaintenanceCount} Units`}
                 </strong>
               </div>
             </div>
