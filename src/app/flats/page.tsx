@@ -79,6 +79,7 @@ export default function FlatsPage() {
       await fetchData();
     } catch (err: unknown) {
       toast.error((err as Error).message || "Failed to save flat", "Error");
+      throw err;
     }
   };
 

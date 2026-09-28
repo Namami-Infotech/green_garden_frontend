@@ -64,7 +64,12 @@ export function FlatGrid({
           ) : (
             paginatedFlats.map((flat) => {
               const isMyFlat = !!user?.id && (flat.residentId === user.id || flat.ownerId === user.id);
-              const canPayDues = (isStaff || (isResident && isMyFlat)) && flat.occupancyStatus !== "VACANT";
+              const canPayDues = isStaff || (isResident && isMyFlat);
+              const isAssigned = Boolean(
+                (flat.ownerId || flat.ownerName?.trim()) ||
+                (flat.residentId || flat.residentName?.trim())
+              );
+              const isPayDisabled = !isAssigned || flat.occupancyStatus === "VACANT";
 
               return (
                 <tr key={flat.id}>
@@ -151,7 +156,12 @@ export function FlatGrid({
                     <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", justifyContent: "flex-end" }}>
                       {canPayDues && onPayDues && (
                         <button
-                          onClick={() => onPayDues(flat)}
+                          onClick={() => {
+                            if (!isPayDisabled) {
+                              onPayDues(flat);
+                            }
+                          }}
+                          disabled={isPayDisabled}
                           className="btn"
                           style={{
                             padding: "6px 12px",
@@ -161,16 +171,23 @@ export function FlatGrid({
                             display: "inline-flex",
                             alignItems: "center",
                             gap: "6px",
-                            backgroundColor: "#ecfdf5",
-                            color: "#047857",
-                            border: "1px solid #a7f3d0",
-                            boxShadow: "0 1px 3px rgba(16, 185, 129, 0.1)",
-                            cursor: "pointer",
+                            backgroundColor: isPayDisabled ? "#f1f5f9" : "#ecfdf5",
+                            color: isPayDisabled ? "#94a3b8" : "#047857",
+                            border: isPayDisabled ? "1px solid #e2e8f0" : "1px solid #a7f3d0",
+                            boxShadow: isPayDisabled ? "none" : "0 1px 3px rgba(16, 185, 129, 0.1)",
+                            cursor: isPayDisabled ? "not-allowed" : "pointer",
+                            opacity: isPayDisabled ? 0.65 : 1,
                             flexShrink: 0,
                           }}
-                          title={`Pay  Dues for Flat ${flat.flatNumber}`}
+                          title={
+                            !isAssigned
+                              ? `Cannot pay dues: Flat ${flat.flatNumber} is not assigned to anyone`
+                              : flat.occupancyStatus === "VACANT"
+                              ? `Cannot pay dues: Flat ${flat.flatNumber} is vacant`
+                              : `Pay Dues for Flat ${flat.flatNumber}`
+                          }
                         >
-                          <Receipt size={14} color="#059669" />
+                          <Receipt size={14} color={isPayDisabled ? "#94a3b8" : "#059669"} />
                           <span>Pay Dues</span>
                         </button>
                       )}

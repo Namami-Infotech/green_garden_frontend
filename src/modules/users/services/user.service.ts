@@ -1,56 +1,8 @@
 import { apiClient } from "../../../lib/api-client";
 import { CreateUserData, UpdateUserData, UserFilterOptions, UserItem } from "../types/index";
 
-const initialMockUsers: UserItem[] = [
-  {
-    id: 1,
-    name: "Ramesh Sharma",
-    email: "secretary@society.com",
-    phone: "+91 98765 43210",
-    role: "SECRETARY",
-    status: "ACTIVE",
-    createdAt: "2026-01-10T10:00:00Z",
-  },
-  {
-    id: 2,
-    name: "Pooja Verma",
-    email: "accountant@society.com",
-    phone: "+91 98111 22334",
-    role: "ACCOUNTANT",
-    status: "ACTIVE",
-    createdAt: "2026-01-15T12:30:00Z",
-  },
-  {
-    id: 3,
-    name: "Amit Patel",
-    email: "amit.patel@gmail.com",
-    phone: "+91 99000 55443",
-    role: "USER",
-    status: "ACTIVE",
-    createdAt: "2026-02-01T14:15:00Z",
-  },
-  {
-    id: 4,
-    name: "Sunita Iyer",
-    email: "sunita.iyer@outlook.com",
-    phone: "+91 97222 88990",
-    role: "USER",
-    status: "ACTIVE",
-    createdAt: "2026-02-18T09:40:00Z",
-  },
-  {
-    id: 5,
-    name: "Bahadur Singh",
-    email: "security@society.com",
-    phone: "+91 98888 77665",
-    role: "SECURITY",
-    status: "ACTIVE",
-    createdAt: "2026-02-20T08:00:00Z",
-  },
-];
-
 export class UserService {
-  private localUsers: UserItem[] = [...initialMockUsers];
+  private localUsers: UserItem[] = [];
 
   async getUsers(filters?: UserFilterOptions): Promise<{ users: UserItem[]; total: number }> {
     try {
@@ -62,6 +14,7 @@ export class UserService {
       const endpoint = `/users${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
       const response = await apiClient.get<{ users: UserItem[]; meta: { total: number } }>(endpoint);
       if (response.data) {
+        this.localUsers = response.data.users;
         return { users: response.data.users, total: response.data.meta.total };
       }
     } catch {

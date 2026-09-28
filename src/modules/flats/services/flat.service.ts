@@ -98,11 +98,44 @@ export class FlatService {
   }
 
   async createFlat(data: CreateFlatData): Promise<FlatItem> {
+    const payload = {
+      flatNumber: data.flatNumber,
+      blockId: data.blockId,
+      floor: data.floor,
+      flatType: data.flatType,
+      occupancyStatus: data.occupancyStatus,
+      ownerId: data.ownerId !== undefined ? data.ownerId : null,
+      residentId: data.residentId !== undefined ? data.residentId : null,
+    };
+
     try {
-      const response = await apiClient.post<FlatItem>("/flats", data);
-      if (response.data) return response.data;
-    } catch {
-      // Fallback
+      const response = await apiClient.post<FlatItem>("/flats", payload);
+      if (response.data) {
+        this.localFlats.unshift(response.data);
+        return response.data;
+      }
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message || "";
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("fetch failed")) {
+        const newFlat: FlatItem = {
+          id: Date.now(),
+          flatNumber: data.flatNumber,
+          blockId: data.blockId,
+          floor: data.floor,
+          flatType: data.flatType,
+          occupancyStatus: data.occupancyStatus,
+          ownerId: data.ownerId,
+          residentId: data.residentId,
+          blockName: `Tower ${data.blockId === 1 ? "A" : data.blockId === 2 ? "B" : "C"}`,
+          ownerName: data.ownerName,
+          residentName: data.residentName,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        this.localFlats.unshift(newFlat);
+        return newFlat;
+      }
+      throw err;
     }
 
     const newFlat: FlatItem = {
@@ -115,6 +148,8 @@ export class FlatService {
       ownerId: data.ownerId,
       residentId: data.residentId,
       blockName: `Tower ${data.blockId === 1 ? "A" : data.blockId === 2 ? "B" : "C"}`,
+      ownerName: data.ownerName,
+      residentName: data.residentName,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -123,11 +158,38 @@ export class FlatService {
   }
 
   async updateFlat(id: number, data: Partial<CreateFlatData>): Promise<FlatItem> {
+    const payload: Record<string, unknown> = {};
+    if (data.flatNumber !== undefined) payload.flatNumber = data.flatNumber;
+    if (data.blockId !== undefined) payload.blockId = data.blockId;
+    if (data.floor !== undefined) payload.floor = data.floor;
+    if (data.flatType !== undefined) payload.flatType = data.flatType;
+    if (data.occupancyStatus !== undefined) payload.occupancyStatus = data.occupancyStatus;
+    if (data.ownerId !== undefined) payload.ownerId = data.ownerId;
+    if (data.residentId !== undefined) payload.residentId = data.residentId;
+
     try {
-      const response = await apiClient.put<FlatItem>(`/flats/${id}`, data);
-      if (response.data) return response.data;
-    } catch {
-      // Fallback
+      const response = await apiClient.put<FlatItem>(`/flats/${id}`, payload);
+      if (response.data) {
+        const index = this.localFlats.findIndex((f) => f.id === id);
+        if (index !== -1) {
+          this.localFlats[index] = response.data;
+        }
+        return response.data;
+      }
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message || "";
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("fetch failed")) {
+        const index = this.localFlats.findIndex((f) => f.id === id);
+        if (index !== -1) {
+          this.localFlats[index] = {
+            ...this.localFlats[index],
+            ...data,
+            updatedAt: new Date().toISOString(),
+          };
+          return this.localFlats[index];
+        }
+      }
+      throw err;
     }
 
     const index = this.localFlats.findIndex((f) => f.id === id);

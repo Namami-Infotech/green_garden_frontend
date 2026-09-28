@@ -98,9 +98,9 @@ export function UserFormModal({
     try {
       const assignment: FlatAssignmentOption | undefined = selectedFlatId
         ? {
-            flatId: Number(selectedFlatId),
-            role: flatRole,
-          }
+          flatId: Number(selectedFlatId),
+          role: flatRole,
+        }
         : undefined;
 
       await onSubmit(
@@ -137,8 +137,8 @@ export function UserFormModal({
         initialData
           ? `Edit ${mode === "STAFF" ? "Staff / Employee" : "Resident"} (${initialData.name})`
           : mode === "STAFF"
-          ? "Add New Employee / Staff"
-          : "Add New User / Resident"
+            ? "Add New Employee / Staff"
+            : "Add New User / Resident"
       }
     >
       {error && (
@@ -225,7 +225,7 @@ export function UserFormModal({
                 }}
               >
                 <span style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.9rem" }}>
-                  USER 
+                  USER
                 </span>
               </div>
             ) : (
