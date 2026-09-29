@@ -421,7 +421,7 @@ export default function DashboardPage() {
 
   const monthMaintenanceCollected = useMemo(() => {
     return monthFilteredTxns
-      .filter((t) => t.transactionType === "MAINTENANCE" || t.transactionType === "SECURITY_CHARGE")
+      .filter((t) => t.transactionType === "MAINTENANCE" || t.transactionType === "SECURITY_CHARGE" || t.transactionType === "BOTH")
       .reduce((acc, t) => acc + (t.effectiveAmount || 0), 0);
   }, [monthFilteredTxns]);
 
@@ -543,7 +543,7 @@ export default function DashboardPage() {
           : (parseFloat(t.amount) || 0);
       const type = (t.transactionType as TransactionType) || "MAINTENANCE";
 
-      if (type === "MAINTENANCE") {
+      if (type === "MAINTENANCE" || type === "BOTH") {
         baseMaintenanceTotal += amt * baseRatio;
         baseMaintenanceCount += 1;
         securityChargeTotal += amt * secRatio;

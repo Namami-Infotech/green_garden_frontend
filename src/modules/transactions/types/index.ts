@@ -1,5 +1,5 @@
 export type PaymentMethod = "CASH" | "UPI" | "BANK_TRANSFER" | "CHEQUE";
-export type TransactionType = "MAINTENANCE" | "SECURITY_CHARGE" | "PENALTY" | "EVENT" | "WATER" | "OTHER";
+export type TransactionType = "MAINTENANCE" | "SECURITY_CHARGE" | "BOTH" | "PENALTY" | "EVENT" | "WATER" | "OTHER";
 export type TransactionStatus = "SUCCESS" | "PENDING" | "FAILED" | "REFUNDED";
 
 export interface TransactionItem {

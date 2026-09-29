@@ -136,15 +136,14 @@ export default function TransactionsPage() {
             {/* Category Filter */}
             <select
               className="form-select"
-              style={{ width: "190px" }}
+              style={{ width: "210px" }}
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
             >
               <option value="">All Categories</option>
-              <option value="MAINTENANCE">Monthly Maintenance</option>
-              <option value="SECURITY_CHARGE">Security Charge</option>
-              <option value="PENALTY">Late Penalty</option>
-              <option value="EVENT">Society Event</option>
+              <option value="BOTH">Both (Maintenance + Security)</option>
+              <option value="MAINTENANCE">Base Maintenance Only</option>
+              <option value="SECURITY_CHARGE">Security Charge Only</option>
             </select>
           </form>
 
@@ -181,7 +180,12 @@ export default function TransactionsPage() {
             Loading transactions register...
           </div>
         ) : (
-          <TransactionList transactions={transactions} />
+          <TransactionList
+            transactions={transactions}
+            onTransactionUpdated={(updated) => {
+              setTransactions((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+            }}
+          />
         )}
 
         {/* Modal */}

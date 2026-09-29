@@ -5,87 +5,8 @@ import {
   TransactionItem,
   TransactionStats,
 } from "../types/index";
-
-const initialMockTransactions: TransactionItem[] = [
-  {
-    id: 1,
-    receiptNumber: "RCP-2026-1001",
-    accountantId: 2,
-    accountantName: "Pooja Verma (Accountant)",
-    accountantEmail: "accountant@society.com",
-    payerId: 1,
-    payerName: "Ramesh Sharma",
-    payerEmail: "secretary@society.com",
-    flatId: 1,
-    flatNumber: "101",
-    blockName: "Tower A (Emerald)",
-    amount: "4000.00",
-    transactionType: "MAINTENANCE",
-    paymentMethod: "UPI",
-    referenceNumber: "UPI/2026/893746281",
-    paymentDate: "2026-09-18T11:30:00.000Z",
-    status: "SUCCESS",
-    notes: "September monthly dues settled via UPI",
-    billingMonth: "September 2026",
-    paymentPlan: "FULL",
-    balanceRemaining: "0.00",
-    createdAt: "2026-09-18T11:30:00.000Z",
-    updatedAt: "2026-09-18T11:30:00.000Z",
-  },
-  {
-    id: 2,
-    receiptNumber: "RCP-2026-1002",
-    accountantId: 2,
-    accountantName: "Pooja Verma (Accountant)",
-    accountantEmail: "accountant@society.com",
-    payerId: 3,
-    payerName: "Amit Patel",
-    payerEmail: "amit.patel@gmail.com",
-    flatId: 2,
-    flatNumber: "102",
-    blockName: "Tower A (Emerald)",
-    amount: "2000.00",
-    transactionType: "MAINTENANCE",
-    paymentMethod: "CASH",
-    referenceNumber: "CASH-REC-014",
-    paymentDate: "2026-09-18T16:15:00.000Z",
-    status: "SUCCESS",
-    notes: "September maintenance partial pay at office counter",
-    billingMonth: "September 2026",
-    paymentPlan: "PARTIAL",
-    balanceRemaining: "2000.00",
-    createdAt: "2026-09-18T16:15:00.000Z",
-    updatedAt: "2026-09-18T16:15:00.000Z",
-  },
-  {
-    id: 3,
-    receiptNumber: "RCP-2026-1003",
-    accountantId: 2,
-    accountantName: "Pooja Verma (Accountant)",
-    accountantEmail: "accountant@society.com",
-    payerId: 6,
-    payerName: "Rajesh Malhotra",
-    payerEmail: "rajesh@society.com",
-    flatId: 3,
-    flatNumber: "201",
-    blockName: "Tower A (Emerald)",
-    amount: "4000.00",
-    transactionType: "MAINTENANCE",
-    paymentMethod: "UPI",
-    referenceNumber: "PAYTM/883719024",
-    paymentDate: "2026-09-19T09:45:00.000Z",
-    status: "SUCCESS",
-    notes: "Base maintenance + security charge combined via Paytm UPI",
-    billingMonth: "September 2026",
-    paymentPlan: "FULL",
-    balanceRemaining: "0.00",
-    createdAt: "2026-09-19T09:45:00.000Z",
-    updatedAt: "2026-09-19T09:45:00.000Z",
-  },
-];
-
 export class TransactionService {
-  private localTransactions: TransactionItem[] = [...initialMockTransactions];
+  private localTransactions: TransactionItem[] = [];
 
   async getTransactions(query?: TransactionFilterQuery): Promise<TransactionItem[]> {
     try {
@@ -169,6 +90,32 @@ export class TransactionService {
 
     this.localTransactions.unshift(newRecord);
     return newRecord;
+  }
+
+  async updateTransaction(id: number, data: Partial<TransactionItem>): Promise<TransactionItem | null> {
+    try {
+      const res = await apiClient.patch<TransactionItem>(`/transactions/${id}`, data);
+      if (res.data) {
+        const idx = this.localTransactions.findIndex((t) => t.id === id);
+        if (idx !== -1) {
+          this.localTransactions[idx] = { ...this.localTransactions[idx], ...res.data };
+        }
+        return res.data;
+      }
+    } catch {
+      // Local fallback
+    }
+
+    const idx = this.localTransactions.findIndex((t) => t.id === id);
+    if (idx !== -1) {
+      this.localTransactions[idx] = {
+        ...this.localTransactions[idx],
+        ...data,
+        updatedAt: new Date().toISOString(),
+      };
+      return this.localTransactions[idx];
+    }
+    return null;
   }
 
   getStats(): TransactionStats {

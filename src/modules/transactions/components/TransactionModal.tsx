@@ -11,10 +11,13 @@ import {
   AlertCircle,
   User,
   Home,
-  Search,
-  CheckCircle2,
   Clock,
-  ChevronDown,
+  Percent,
+  Shield,
+  Layers,
+  AlertTriangle,
+  CheckCircle2,
+  HelpCircle,
 } from "lucide-react";
 import { CreateTransactionData, PaymentMethod, TransactionItem } from "../types/index";
 import { FlatItem } from "../../flats/types/index";
@@ -66,20 +69,26 @@ export function TransactionModal({
   const { user } = useAuth();
   const isResident = user?.role === "USER";
 
-  // Society dues settings
-  const [monthlyDuePerUnit, setMonthlyDuePerUnit] = useState<number>(4000);
+  // Society financial policy rates (from Settings)
+  const [baseMaintenanceRate, setBaseMaintenanceRate] = useState<number>(500);
+  const [securityChargeRate, setSecurityChargeRate] = useState<number>(600);
+  const [latePaymentAnnualRate, setLatePaymentAnnualRate] = useState<number>(15);
   const [loadingSettings, setLoadingSettings] = useState<boolean>(true);
+
+  // Selection options: Fee Components to include
+  const [includeBaseMaintenance, setIncludeBaseMaintenance] = useState<boolean>(true);
+  const [includeSecurityCharge, setIncludeSecurityCharge] = useState<boolean>(true);
+  const [applyLateInterest, setApplyLateInterest] = useState<boolean>(true);
 
   // User / Flat Selection & Search
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFlatId, setSelectedFlatId] = useState<number | null>(null);
   const [payerName, setPayerName] = useState("");
   const [payerId, setPayerId] = useState<number | undefined>(undefined);
-  const [showDropdown, setShowDropdown] = useState(false);
 
-  // Number of months to pay
+  // Month Selection: custom start month (or null to use auto-recommended start month)
+  const [customStartMonthVal, setCustomStartMonthVal] = useState<number | null>(null);
   const [monthCount, setMonthCount] = useState<number>(1);
-  const [customMonthInput, setCustomMonthInput] = useState<string>("1");
 
   // Payment method: UPI vs CASH
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("UPI");
@@ -87,13 +96,12 @@ export function TransactionModal({
 
   // Previous transactions list for calculating last paid month
   const [recentTransactions, setRecentTransactions] = useState<TransactionItem[]>([]);
-  const [loadingTxns, setLoadingTxns] = useState(false);
 
   // General form states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 1. Load Settings (Base rate + security fund)
+  // 1. Load Settings (Base rate + security charge + late interest)
   useEffect(() => {
     if (!isOpen) return;
     async function loadConfigAndTxns() {
@@ -103,9 +111,14 @@ export function TransactionModal({
           settingService.getSettings(),
           transactionService.getTransactions().catch(() => []),
         ]);
-        const base = Number(config.monthlyMaintenanceRate) || 3500;
-        const sec = Number(config.monthlySecurityCharge) || 500;
-        setMonthlyDuePerUnit(base + sec);
+        
+        const base = Number(config.monthlyMaintenanceRate);
+        const sec = Number(config.monthlySecurityCharge);
+        const interest = Number(config.latePaymentPenaltyPercent);
+
+        setBaseMaintenanceRate(!isNaN(base) && base >= 0 ? base : 500);
+        setSecurityChargeRate(!isNaN(sec) && sec >= 0 ? sec : 600);
+        setLatePaymentAnnualRate(!isNaN(interest) && interest >= 0 ? interest : 15);
         setRecentTransactions(txns);
       } catch (err) {
         console.error("Failed to load settings or transactions", err);
@@ -170,7 +183,10 @@ export function TransactionModal({
       }
     }
     setMonthCount(1);
-    setCustomMonthInput("1");
+    setCustomStartMonthVal(null);
+    setIncludeBaseMaintenance(true);
+    setIncludeSecurityCharge(true);
+    setApplyLateInterest(true);
     setError(null);
     setReferenceNumber("");
   }, [isOpen, initialFlatId, initialPayerName, initialPayerId, flats, isResident, user]);
@@ -194,12 +210,6 @@ export function TransactionModal({
       };
     });
   }, [flats]);
-
-  const filteredUnits = useMemo(() => {
-    if (!searchTerm.trim()) return searchableUnits;
-    const term = searchTerm.toLowerCase();
-    return searchableUnits.filter((u) => u.searchText.includes(term));
-  }, [searchableUnits, searchTerm]);
 
   // Determine the Last Paid Month for the currently selected flat / payer
   const lastPaidMonthInfo = useMemo(() => {
@@ -238,57 +248,109 @@ export function TransactionModal({
     return maxMonthVal > 0 ? { val: maxMonthVal, str: maxMonthStr } : null;
   }, [selectedFlatId, payerName, payerId, recentTransactions]);
 
-  // Compute From Month and To Month based on last paid month and monthCount
-  const { startMonthStr, endMonthStr, currentMonthVal } = useMemo(() => {
+  // Current Month calculation
+  const currentMonthVal = useMemo(() => {
     const now = new Date();
-    const currentVal = now.getFullYear() * 12 + now.getMonth();
+    return now.getFullYear() * 12 + now.getMonth();
+  }, []);
 
-    let startVal: number;
+  // Recommended next month value
+  const recommendedStartMonthVal = useMemo(() => {
     if (lastPaidMonthInfo) {
-      // Agle month se shuru hoga
-      startVal = lastPaidMonthInfo.val + 1;
-    } else {
-      // Pehla transaction hai -> Current month se shuru
-      startVal = currentVal;
+      return lastPaidMonthInfo.val + 1;
     }
+    return currentMonthVal;
+  }, [lastPaidMonthInfo, currentMonthVal]);
 
+  // Active start month value (custom or recommended)
+  const activeStartMonthVal = customStartMonthVal !== null ? customStartMonthVal : recommendedStartMonthVal;
+
+  // Selected Billing Range
+  const { startMonthStr, endMonthStr, endMonthVal } = useMemo(() => {
     const count = Math.max(1, monthCount);
-    const endVal = startVal + count - 1;
+    const endVal = activeStartMonthVal + count - 1;
+    return {
+      startMonthStr: formatMonthYear(activeStartMonthVal),
+      endMonthStr: formatMonthYear(endVal),
+      endMonthVal: endVal,
+    };
+  }, [activeStartMonthVal, monthCount]);
+
+  // Monthly dues based on selected components
+  const selectedMonthlyRate = useMemo(() => {
+    let rate = 0;
+    if (includeBaseMaintenance) rate += baseMaintenanceRate;
+    if (includeSecurityCharge) rate += securityChargeRate;
+    return rate;
+  }, [includeBaseMaintenance, includeSecurityCharge, baseMaintenanceRate, securityChargeRate]);
+
+  // Base and Security total amounts
+  const baseSubtotal = (includeBaseMaintenance ? baseMaintenanceRate : 0) * monthCount;
+  const securitySubtotal = (includeSecurityCharge ? securityChargeRate : 0) * monthCount;
+  const principalTotal = baseSubtotal + securitySubtotal;
+
+  // Overdue months and Late Interest calculation based on Policy Rate
+  const { overdueMonthsCount, calculatedLateInterest, lateMonthsDetail } = useMemo(() => {
+    let overdueCount = 0;
+    let totalInterest = 0;
+    const details: { monthStr: string; monthsLate: number; interest: number }[] = [];
+
+    // Monthly interest factor = (Annual Interest % / 100) / 12
+    const monthlyInterestRate = (latePaymentAnnualRate / 100) / 12;
+
+    for (let i = 0; i < monthCount; i++) {
+      const mVal = activeStartMonthVal + i;
+      if (mVal < currentMonthVal) {
+        const monthsLate = currentMonthVal - mVal;
+        overdueCount++;
+        // Interest on selected monthly dues for this overdue month
+        const monthInterest = selectedMonthlyRate * monthlyInterestRate * monthsLate;
+        totalInterest += monthInterest;
+        details.push({
+          monthStr: formatMonthYear(mVal),
+          monthsLate,
+          interest: monthInterest,
+        });
+      }
+    }
 
     return {
-      startMonthVal: startVal,
-      endMonthVal: endVal,
-      startMonthStr: formatMonthYear(startVal),
-      endMonthStr: formatMonthYear(endVal),
-      currentMonthVal: currentVal,
+      overdueMonthsCount: overdueCount,
+      calculatedLateInterest: Math.round(totalInterest * 100) / 100,
+      lateMonthsDetail: details,
     };
-  }, [lastPaidMonthInfo, monthCount]);
+  }, [activeStartMonthVal, monthCount, currentMonthVal, latePaymentAnnualRate, selectedMonthlyRate]);
 
-  // Total amount to pay
-  const totalAmountToPay = monthlyDuePerUnit * Math.max(1, monthCount);
+  // Final total amount to pay
+  const finalPayableAmount = useMemo(() => {
+    const interestToAdd = applyLateInterest ? calculatedLateInterest : 0;
+    return principalTotal + interestToAdd;
+  }, [principalTotal, applyLateInterest, calculatedLateInterest]);
 
-  // Handle month count selection (e.g. 1, 3, 6, 12, or custom)
-  const handleSelectMonthCount = (count: number) => {
-    setMonthCount(count);
-    setCustomMonthInput(String(count));
-  };
+  // Generate selectable start month options (last 24 months to next 12 months)
+  const startMonthOptions = useMemo(() => {
+    const list: { val: number; label: string }[] = [];
+    const minVal = currentMonthVal - 24;
+    const maxVal = currentMonthVal + 12;
 
-  const handleCustomMonthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setCustomMonthInput(val);
-    const num = parseInt(val, 10);
-    if (!isNaN(num) && num > 0) {
-      setMonthCount(num);
+    for (let v = minVal; v <= maxVal; v++) {
+      const name = formatMonthYear(v);
+      let tag = "";
+      if (v === recommendedStartMonthVal) {
+        tag = " — (Recommended / Next Due)";
+      } else if (v === currentMonthVal) {
+        tag = " — (Current Month)";
+      } else if (v < currentMonthVal) {
+        const diff = currentMonthVal - v;
+        tag = ` — (${diff} mo overdue)`;
+      }
+      list.push({
+        val: v,
+        label: `${name}${tag}`,
+      });
     }
-  };
-
-  const handleSelectUnit = (unit: typeof searchableUnits[0]) => {
-    setSelectedFlatId(unit.flatId);
-    setPayerName(unit.payerName);
-    setPayerId(unit.payerId);
-    setSearchTerm(unit.displayLabel);
-    setShowDropdown(false);
-  };
+    return list;
+  }, [currentMonthVal, recommendedStartMonthVal]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,6 +358,11 @@ export function TransactionModal({
 
     if (!payerName.trim()) {
       setError("Please select a User / Flat.");
+      return;
+    }
+
+    if (!includeBaseMaintenance && !includeSecurityCharge) {
+      setError("Please select at least one fee component (Base Maintenance or Security Charge).");
       return;
     }
 
@@ -309,16 +376,36 @@ export function TransactionModal({
       const billingPeriodLabel =
         startMonthStr === endMonthStr ? startMonthStr : `${startMonthStr} to ${endMonthStr}`;
       
+      // Determine transaction type
+      let txnType: "MAINTENANCE" | "SECURITY_CHARGE" | "BOTH" = "MAINTENANCE";
+      if (includeBaseMaintenance && includeSecurityCharge) {
+        txnType = "BOTH";
+      } else if (!includeBaseMaintenance && includeSecurityCharge) {
+        txnType = "SECURITY_CHARGE";
+      } else {
+        txnType = "MAINTENANCE";
+      }
+
+      // Build descriptive notes
+      const notesParts: string[] = [];
+      if (includeBaseMaintenance) notesParts.push(`Base Maint: ₹${baseSubtotal}`);
+      if (includeSecurityCharge) notesParts.push(`Security: ₹${securitySubtotal}`);
+      if (applyLateInterest && calculatedLateInterest > 0) {
+        notesParts.push(`Late Interest (${latePaymentAnnualRate}% p.a.): ₹${calculatedLateInterest.toFixed(2)}`);
+      }
+
+      const notes = `Paid for ${monthCount} mo [${billingPeriodLabel}] (${notesParts.join(", ")}) via ${paymentMethod}`;
+
       const payload: CreateTransactionData = {
         payerName: payerName.trim(),
         payerId: payerId,
         flatId: selectedFlatId || undefined,
-        amount: totalAmountToPay.toFixed(2),
-        transactionType: "MAINTENANCE",
+        amount: finalPayableAmount.toFixed(2),
+        transactionType: txnType,
         paymentMethod: paymentMethod,
         referenceNumber: referenceNumber.trim() || undefined,
         paymentDate: new Date().toISOString(),
-        notes: `Paid for ${monthCount} month(s) [${billingPeriodLabel}] via ${paymentMethod}`,
+        notes: notes,
         billingMonth: billingPeriodLabel,
         fromMonth: startMonthStr,
         toMonth: endMonthStr,
@@ -359,13 +446,14 @@ export function TransactionModal({
         className="glass-panel animate-fade-in"
         style={{
           width: "100%",
-          maxWidth: "520px",
+          maxWidth: "540px",
           backgroundColor: "#ffffff",
           borderRadius: "16px",
           boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          maxHeight: "92vh",
         }}
       >
         {/* Header */}
@@ -400,7 +488,7 @@ export function TransactionModal({
                 {isResident ? "Pay Society Maintenance" : "Collect / Record Payment"}
               </h3>
               <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                Monthly Rate: <strong>₹{monthlyDuePerUnit.toLocaleString("en-IN")}</strong> / month
+                Maintenance: <strong>₹{baseMaintenanceRate}</strong> | Security: <strong>₹{securityChargeRate}</strong> | Late Interest: <strong>{latePaymentAnnualRate}% p.a.</strong>
               </span>
             </div>
           </div>
@@ -425,7 +513,8 @@ export function TransactionModal({
             padding: "20px 24px",
             display: "flex",
             flexDirection: "column",
-            gap: "18px",
+            gap: "16px",
+            overflowY: "auto",
           }}
         >
           {error && (
@@ -470,11 +559,13 @@ export function TransactionModal({
                   setPayerName(found.payerName);
                   setPayerId(found.payerId);
                   setSearchTerm(found.displayLabel);
+                  setCustomStartMonthVal(null);
                 } else {
                   setSelectedFlatId(null);
                   setPayerName("");
                   setPayerId(undefined);
                   setSearchTerm("");
+                  setCustomStartMonthVal(null);
                 }
               }}
               required
@@ -496,10 +587,10 @@ export function TransactionModal({
             </select>
           </div>
 
-          {/* Previous History Banner (Purane transaction ke bad se calculation) */}
+          {/* Previous History Banner */}
           <div
             style={{
-              padding: "10px 14px",
+              padding: "8px 12px",
               borderRadius: "8px",
               backgroundColor: "#f8fafc",
               border: "1px solid #e2e8f0",
@@ -510,84 +601,309 @@ export function TransactionModal({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <Clock size={15} color="#6366f1" />
+              <Clock size={14} color="#6366f1" />
               <span style={{ color: "#475569" }}>
                 Last Paid Month:{" "}
                 <strong style={{ color: lastPaidMonthInfo ? "#059669" : "#64748b" }}>
-                  {lastPaidMonthInfo ? lastPaidMonthInfo.str : "None (Starting from Current Month)"}
+                  {lastPaidMonthInfo ? lastPaidMonthInfo.str : "None (Starting afresh)"}
                 </strong>
               </span>
             </div>
+            {lastPaidMonthInfo && (
+              <span style={{ fontSize: "0.75rem", color: "#059669", fontWeight: 600 }}>
+                Next due: {formatMonthYear(lastPaidMonthInfo.val + 1)}
+              </span>
+            )}
           </div>
 
-          {/* 2. NUMBER OF MONTHS SELECTOR (1 to 12 Months Dropdown) */}
-          <div className="form-group" style={{ margin: 0 }}>
-            <label
-              htmlFor="month-count-select"
-              className="form-label"
-              style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}
-            >
-              <Calendar size={15} color="#059669" />
-              Select Number of Months (1 to 12) *
+          {/* 2. SELECT FEE COMPONENTS (Base Maintenance, Security Charge) */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <label style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
+              <Layers size={15} color="#059669" />
+              Select Fee Charges to Include *
             </label>
-            <select
-              id="month-count-select"
-              className="form-select"
-              value={monthCount}
-              onChange={(e) => handleSelectMonthCount(Number(e.target.value))}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              {/* Base Maintenance Toggle */}
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px",
+                  padding: "10px 12px",
+                  borderRadius: "10px",
+                  border: includeBaseMaintenance ? "2px solid #059669" : "1px solid #cbd5e1",
+                  backgroundColor: includeBaseMaintenance ? "rgba(5, 150, 105, 0.05)" : "#ffffff",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={includeBaseMaintenance}
+                  onChange={(e) => setIncludeBaseMaintenance(e.target.checked)}
+                  style={{ marginTop: "3px", width: "16px", height: "16px", cursor: "pointer", accentColor: "#059669" }}
+                />
+                <div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: includeBaseMaintenance ? "#065f46" : "#334155" }}>
+                    Base Maintenance
+                  </div>
+                  <div style={{ fontSize: "0.8rem", color: "#059669", fontWeight: 700 }}>
+                    ₹{baseMaintenanceRate.toLocaleString("en-IN")}<span style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 500 }}>/mo</span>
+                  </div>
+                </div>
+              </label>
+
+              {/* Security Charge Toggle */}
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px",
+                  padding: "10px 12px",
+                  borderRadius: "10px",
+                  border: includeSecurityCharge ? "2px solid #3b82f6" : "1px solid #cbd5e1",
+                  backgroundColor: includeSecurityCharge ? "rgba(59, 130, 246, 0.05)" : "#ffffff",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={includeSecurityCharge}
+                  onChange={(e) => setIncludeSecurityCharge(e.target.checked)}
+                  style={{ marginTop: "3px", width: "16px", height: "16px", cursor: "pointer", accentColor: "#3b82f6" }}
+                />
+                <div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: includeSecurityCharge ? "#1e40af" : "#334155" }}>
+                    Security Charge
+                  </div>
+                  <div style={{ fontSize: "0.8rem", color: "#2563eb", fontWeight: 700 }}>
+                    ₹{securityChargeRate.toLocaleString("en-IN")}<span style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 500 }}>/mo</span>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* 3. MONTH DURATION & STARTING MONTH SELECTOR */}
+          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "10px" }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label
+                htmlFor="txn-start-month-select"
+                className="form-label"
+                style={{ fontWeight: 700, fontSize: "0.825rem", display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <Calendar size={14} color="#059669" />
+                Start From Month *
+              </label>
+              <select
+                id="txn-start-month-select"
+                className="form-select"
+                value={activeStartMonthVal}
+                onChange={(e) => setCustomStartMonthVal(Number(e.target.value))}
+                style={{
+                  fontSize: "0.875rem",
+                  fontWeight: 600,
+                  padding: "8px 10px",
+                  borderColor: "#cbd5e1",
+                }}
+              >
+                {startMonthOptions.map((opt) => (
+                  <option key={opt.val} value={opt.val}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label
+                htmlFor="month-count-select"
+                className="form-label"
+                style={{ fontWeight: 700, fontSize: "0.825rem", display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <Clock size={14} color="#059669" />
+                Duration (Months) *
+              </label>
+              <select
+                id="month-count-select"
+                className="form-select"
+                value={monthCount}
+                onChange={(e) => setMonthCount(Number(e.target.value))}
+                style={{
+                  fontSize: "0.875rem",
+                  fontWeight: 600,
+                  padding: "8px 10px",
+                  borderColor: "#cbd5e1",
+                }}
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
+                  <option key={num} value={num}>
+                    {num} {num === 1 ? "Month" : "Months"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 4. LATE PAYMENT INTEREST POLICY SECTION */}
+          {overdueMonthsCount > 0 ? (
+            <div
               style={{
-                fontSize: "0.95rem",
-                fontWeight: 600,
-                padding: "10px 14px",
-                borderColor: "#cbd5e1",
+                padding: "12px 14px",
+                borderRadius: "10px",
+                backgroundColor: "#fffbeb",
+                border: "1px solid #fde68a",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
               }}
             >
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
-                <option key={num} value={num}>
-                  {num} {num === 1 ? "Month" : "Months"}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <AlertTriangle size={16} color="#d97706" />
+                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#92400e" }}>
+                    Late Payment Detected ({overdueMonthsCount} overdue {overdueMonthsCount === 1 ? "month" : "months"})
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontSize: "0.725rem",
+                    fontWeight: 700,
+                    backgroundColor: "#fef3c7",
+                    color: "#b45309",
+                    padding: "2px 8px",
+                    borderRadius: "6px",
+                  }}
+                >
+                  {latePaymentAnnualRate}% p.a.
+                </span>
+              </div>
 
-          {/* Dynamic Billing Range & Amount Calculated Display */}
+              <div style={{ fontSize: "0.785rem", color: "#78350f", lineHeight: "1.4" }}>
+                Calculated according to Society Financial Policies ({latePaymentAnnualRate}% annual interest on overdue monthly dues).
+              </div>
+
+              {/* Late Interest Checkbox / Waiver toggle */}
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 10px",
+                  backgroundColor: "#ffffff",
+                  borderRadius: "6px",
+                  border: "1px solid #fef08a",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <input
+                    type="checkbox"
+                    checked={applyLateInterest}
+                    onChange={(e) => setApplyLateInterest(e.target.checked)}
+                    style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#d97706" }}
+                  />
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#451a03" }}>
+                    Apply Late Payment Interest
+                  </span>
+                </div>
+                <span style={{ fontSize: "0.9rem", fontWeight: 800, color: applyLateInterest ? "#b45309" : "#94a3b8" }}>
+                  +₹{calculatedLateInterest.toFixed(2)}
+                </span>
+              </label>
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: "8px 12px",
+                borderRadius: "8px",
+                backgroundColor: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                fontSize: "0.8rem",
+                color: "#166534",
+              }}
+            >
+              <CheckCircle2 size={15} color="#16a34a" />
+              <span>
+                <strong>On-Time / Advance Payment:</strong> No late payment interest applicable (0% penalty).
+              </span>
+            </div>
+          )}
+
+          {/* 5. DYNAMIC BILLING BREAKDOWN & TOTAL CALCULATION CARD */}
           <div
             style={{
               padding: "14px 16px",
-              borderRadius: "10px",
+              borderRadius: "12px",
               background: "linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)",
               border: "1px solid #a7f3d0",
               display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
+              flexDirection: "column",
+              gap: "8px",
             }}
           >
-            <div>
-              <div style={{ fontSize: "0.725rem", fontWeight: 700, color: "#065f46", textTransform: "uppercase" }}>
-                Payment Covering ({monthCount} {monthCount === 1 ? "Month" : "Months"})
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: "0.725rem", fontWeight: 700, color: "#065f46", textTransform: "uppercase" }}>
+                  Billing Coverage ({monthCount} {monthCount === 1 ? "Month" : "Months"})
+                </div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f172a", marginTop: "2px" }}>
+                  {startMonthStr === endMonthStr ? (
+                    startMonthStr
+                  ) : (
+                    <span>
+                      {startMonthStr} <span style={{ color: "#059669" }}>→</span> {endMonthStr}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f172a", marginTop: "2px" }}>
-                {startMonthStr === endMonthStr ? (
-                  startMonthStr
-                ) : (
-                  <span>
-                    {startMonthStr} <span style={{ color: "#059669" }}>→</span> {endMonthStr}
-                  </span>
-                )}
+
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: "0.7rem", color: "#047857", fontWeight: 600 }}>Total Payable</div>
+                <div style={{ fontSize: "1.45rem", fontWeight: 800, color: "#065f46" }}>
+                  ₹{finalPayableAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
               </div>
             </div>
 
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: "0.7rem", color: "#047857", fontWeight: 600 }}>Total Payable</div>
-              <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "#065f46" }}>
-                ₹{totalAmountToPay.toLocaleString("en-IN")}
-              </div>
+            {/* Itemized Breakdown */}
+            <div
+              style={{
+                borderTop: "1px dashed #6ee7b7",
+                paddingTop: "6px",
+                marginTop: "2px",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "12px",
+                fontSize: "0.75rem",
+                color: "#047857",
+              }}
+            >
+              {includeBaseMaintenance && (
+                <span>
+                  Base Maint: <strong>₹{baseSubtotal.toLocaleString("en-IN")}</strong>
+                </span>
+              )}
+              {includeSecurityCharge && (
+                <span>
+                  Security: <strong>₹{securitySubtotal.toLocaleString("en-IN")}</strong>
+                </span>
+              )}
+              {applyLateInterest && calculatedLateInterest > 0 && (
+                <span style={{ color: "#b45309", fontWeight: 700 }}>
+                  Late Interest: <strong>+₹{calculatedLateInterest.toFixed(2)}</strong>
+                </span>
+              )}
             </div>
           </div>
 
-          {/* 3. PAYMENT MODE (ONLINE / UPI vs CASH) */}
+          {/* 6. PAYMENT MODE (ONLINE / UPI vs CASH) */}
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label" style={{ fontWeight: 700 }}>
+            <label className="form-label" style={{ fontWeight: 700, fontSize: "0.85rem" }}>
               Payment Mode *
             </label>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
@@ -599,7 +915,7 @@ export function TransactionModal({
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "8px",
-                  padding: "11px",
+                  padding: "10px",
                   borderRadius: "10px",
                   border: paymentMethod === "UPI" ? "2px solid #6366f1" : "1px solid #cbd5e1",
                   backgroundColor: paymentMethod === "UPI" ? "rgba(99, 102, 241, 0.08)" : "#ffffff",
@@ -622,7 +938,7 @@ export function TransactionModal({
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "8px",
-                  padding: "11px",
+                  padding: "10px",
                   borderRadius: "10px",
                   border: paymentMethod === "CASH" ? "2px solid #10b981" : "1px solid #cbd5e1",
                   backgroundColor: paymentMethod === "CASH" ? "rgba(16, 185, 129, 0.08)" : "#ffffff",
@@ -654,15 +970,26 @@ export function TransactionModal({
           </div>
 
           {/* Submit Actions */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "6px" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "4px" }}>
             <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" disabled={loading || !payerName.trim()}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading || !payerName.trim() || (!includeBaseMaintenance && !includeSecurityCharge)}
+              style={{
+                backgroundColor: "#059669",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                fontWeight: 700,
+              }}
+            >
               <Check size={18} />
               {loading
                 ? "Processing..."
-                : `Confirm Payment (₹${totalAmountToPay.toLocaleString("en-IN")})`}
+                : `Confirm Payment (₹${finalPayableAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
             </button>
           </div>
         </form>
@@ -670,3 +997,4 @@ export function TransactionModal({
     </div>
   );
 }
+
