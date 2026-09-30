@@ -20,8 +20,8 @@ export default function SettingsPage() {
         body: JSON.stringify({ email: "secretary@society.com", password: "password123" }),
       });
       const data = await res.json();
-      if (data?.data?.token && data?.data?.user) {
-        login(data.data.token, data.data.user);
+      if (data?.data?.accessToken && data?.data?.user) {
+        login(data.data.accessToken, data.data.refreshToken || null, data.data.user);
       }
     } catch {
       // Fallback

@@ -29,8 +29,12 @@ export function LoginForm() {
     try {
       // Attempt backend login
       const res = await authService.login({ email, password });
-      login(res.token, res.user);
-      router.push("/dashboard");
+      if (res.accessToken) {
+        login(res.accessToken, res.refreshToken || null, res.user);
+        router.push("/dashboard");
+      } else {
+        throw new Error("No authentication token received from server");
+      }
     } catch (err: unknown) {
       const errorMessage =
         err instanceof Error

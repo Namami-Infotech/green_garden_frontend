@@ -33,7 +33,10 @@ function setCookieValue(name: string, value: string, days = 7) {
 class ApiClient {
   private getToken(): string | null {
     if (typeof window !== "undefined") {
-      return getCookieValue("socity_auth_token") || getCookieValue("accessToken") || getCookieValue("access_token");
+      const token = getCookieValue("accessToken") || getCookieValue("access_token");
+      if (token && token !== "undefined" && token !== "null" && token !== "mock_token") {
+        return token;
+      }
     }
     return null;
   }
@@ -41,15 +44,33 @@ class ApiClient {
   private async autoRefreshToken(): Promise<string | null> {
     try {
       const baseUrl = getBaseUrl();
+      const refreshToken = getCookieValue("refreshToken") || getCookieValue("refresh_token");
+
       const res = await fetch(`${baseUrl}/auth/refresh`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(refreshToken ? { "x-refresh-token": refreshToken } : {}),
+        },
+        body: refreshToken ? JSON.stringify({ refreshToken }) : JSON.stringify({}),
       });
+
+      if (!res.ok) {
+        return null;
+      }
+
       const data = await res.json();
-      if (data?.data?.token) {
-        setCookieValue("socity_auth_token", data.data.token, 1);
-        return data.data.token;
+      const newAccessToken = data?.data?.accessToken;
+      const newRefreshToken = data?.data?.refreshToken;
+
+      if (newAccessToken && newAccessToken !== "undefined" && newAccessToken !== "null") {
+        // Set purely in cookies
+        setCookieValue("accessToken", newAccessToken, 1);
+        if (newRefreshToken && newRefreshToken !== "undefined" && newRefreshToken !== "null") {
+          setCookieValue("refreshToken", newRefreshToken, 7);
+        }
+        return newAccessToken;
       }
     } catch {
       // ignore
@@ -68,7 +89,7 @@ class ApiClient {
       ...(options.headers as Record<string, string>),
     };
 
-    if (token && token !== "mock_token") {
+    if (token && token !== "mock_token" && token !== "undefined" && token !== "null") {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
@@ -88,6 +109,16 @@ class ApiClient {
       const newToken = await this.autoRefreshToken();
       if (newToken) {
         return this.request<T>(endpoint, options, true);
+      }
+
+      // If 401 persists and refresh failed, clear cookies and redirect to login
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        setCookieValue("accessToken", "", -1);
+        setCookieValue("refreshToken", "", -1);
+        setCookieValue("user", "", -1);
+        setCookieValue("access_token", "", -1);
+        setCookieValue("refresh_token", "", -1);
+        window.location.href = "/login";
       }
     }
 

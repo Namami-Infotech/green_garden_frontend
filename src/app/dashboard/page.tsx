@@ -28,6 +28,7 @@ import {
   Filter,
 } from "lucide-react";
 import { DashboardShell } from "../../components/DashboardShell";
+import { dashboardService } from "../../modules/dashboard/services/dashboard.service";
 import { blockService } from "../../modules/blocks/services/block.service";
 import { flatService } from "../../modules/flats/services/flat.service";
 import { userService } from "../../modules/users/services/user.service";
@@ -176,34 +177,56 @@ export default function DashboardPage() {
 
   const loadDashboard = async () => {
     try {
-      const [blocks, flatsRes, usersRes, settings, txns] = await Promise.all([
-        blockService.getBlocks(),
-        flatService.getFlats(),
-        userService.getUsers(),
-        settingService.getSettings(),
-        transactionService.getTransactions(),
-      ]);
-
-      const occupied = flatsRes.flats.filter((f) => f.occupancyStatus !== "VACANT");
+      const data = await dashboardService.getDashboard(selectedMonth);
 
       setStats({
-        totalBlocks: blocks.length,
-        totalFlats: flatsRes.flats.length,
-        occupiedFlats: occupied.length,
-        totalUsers: usersRes.total || usersRes.users.length,
-        maintenanceRate: Number(settings.monthlyMaintenanceRate) || 0,
-        securityCharge: Number(settings.monthlySecurityCharge) || 0,
-        societyName: settings.societyName || "Residential Society",
-        visitorPassRequired: settings.visitorPassRequired || "false",
-        quietHours: `${settings.quietHoursStart || "--:--"} - ${settings.quietHoursEnd || "--:--"}`,
+        totalBlocks: data.stats.totalBlocks,
+        totalFlats: data.stats.totalFlats,
+        occupiedFlats: data.stats.occupiedFlats,
+        totalUsers: data.stats.totalMembers,
+        maintenanceRate: data.stats.maintenanceRate,
+        securityCharge: data.stats.securityCharge,
+        societyName: data.stats.societyName,
+        visitorPassRequired: data.stats.visitorPassRequired,
+        quietHours: data.stats.quietHours,
       });
 
-      setBlocksList(blocks);
-      setFlatsList(flatsRes.flats);
-      setUsersList(usersRes.users);
-      setAllTransactions(txns);
+      setBlocksList(data.raw.blocks);
+      setFlatsList(data.raw.flats);
+      setUsersList(data.raw.users);
+      setAllTransactions(data.raw.transactions);
     } catch (err) {
-      console.error("Dashboard failed to load:", err);
+      console.error("Dashboard failed to load from unified API, falling back to separate calls:", err);
+      try {
+        const [blocks, flatsRes, usersRes, settings, txns] = await Promise.all([
+          blockService.getBlocks(),
+          flatService.getFlats(),
+          userService.getUsers(),
+          settingService.getSettings(),
+          transactionService.getTransactions(),
+        ]);
+
+        const occupied = flatsRes.flats.filter((f) => f.occupancyStatus !== "VACANT");
+
+        setStats({
+          totalBlocks: blocks.length,
+          totalFlats: flatsRes.flats.length,
+          occupiedFlats: occupied.length,
+          totalUsers: usersRes.total || usersRes.users.length,
+          maintenanceRate: Number(settings.monthlyMaintenanceRate) || 0,
+          securityCharge: Number(settings.monthlySecurityCharge) || 0,
+          societyName: settings.societyName || "Residential Society",
+          visitorPassRequired: settings.visitorPassRequired || "false",
+          quietHours: `${settings.quietHoursStart || "--:--"} - ${settings.quietHoursEnd || "--:--"}`,
+        });
+
+        setBlocksList(blocks);
+        setFlatsList(flatsRes.flats);
+        setUsersList(usersRes.users);
+        setAllTransactions(txns);
+      } catch (fallbackErr) {
+        console.error("Fallback load also failed:", fallbackErr);
+      }
     } finally {
       setLoading(false);
     }

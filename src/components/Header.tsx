@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 export function Header({ title, onToggleSidebar }: HeaderProps) {
-  const { user, login, token } = useAuth();
+  const { user, login, accessToken } = useAuth();
 
   // console.log(user, token, user, "saaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
@@ -39,15 +39,15 @@ export function Header({ title, onToggleSidebar }: HeaderProps) {
         body: JSON.stringify({ email, password: "123456" }),
       }));
       const data = await res.json();
-      if (data?.data?.token && data?.data?.user) {
-        login(data.data.token, data.data.user);
+      if (data?.data?.accessToken && data?.data?.user) {
+        login(data.data.accessToken, data.data.refreshToken || null, data.data.user);
         return;
       }
     } catch {
       // Fallback
     }
 
-    login(token || "mock_token", {
+    login(accessToken || "mock_token", null, {
       ...user,
       role: newRole,
     });
